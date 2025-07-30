@@ -382,7 +382,7 @@ export default function VisitorRegistration() {
               {isNewVisitor ? "New visitor" : "Returning visitor"} has been registered successfully
             </p>
 
-            <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 mb-6">
+            {/* <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 mb-6">
               <p className="text-gray-600 mb-2 text-base">Digital Card Number</p>
               <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 {digitalCardNo}
@@ -392,7 +392,7 @@ export default function VisitorRegistration() {
                   Visit #{selectedVisitor.visits + 1} for {selectedVisitor.name}
                 </p>
               )}
-            </div>
+            </div> */}
 
             <div className="space-y-3">
               <Button
@@ -401,9 +401,9 @@ export default function VisitorRegistration() {
               >
                 Register Another Visitor
               </Button>
-              <Button variant="outline" onClick={() => setActiveTab("visitors")} className="w-full text-base">
+              {/* <Button variant="outline" onClick={() => setActiveTab("visitors")} className="w-full text-base">
                 View Today's Visitors
-              </Button>
+              </Button> */}
             </div>
           </CardContent>
         </Card>

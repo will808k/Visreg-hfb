@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +22,9 @@ interface ExistingVisitor {
     has_laptop: boolean
     laptop_brand?: string
     laptop_model?: string
+    is_vendor: boolean
+    company?: string
+    person_in_charge?: string
   } | null
 }
 
@@ -65,13 +70,32 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
   }
 
   const formatPhoneNumber = (phone: string) => {
-    // Simple phone number formatting - you can enhance this based on your needs
     if (!phone) return ""
-    return phone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")
+    // Remove all non-digits
+    const cleaned = phone.replace(/\D/g, "")
+    // Format as (XXX) XXX-XXXX if 10 digits, otherwise return as-is
+    if (cleaned.length === 10) {
+      return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")
+    }
+    return phone
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString()
+    if (!dateString) return "Never"
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
+  const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value
+    // Allow only digits, spaces, dashes, parentheses, and plus signs
+    const cleaned = value.replace(/[^\d\s\-$$$$+]/g, "")
+    setPhoneNumber(cleaned)
   }
 
   return (
@@ -94,7 +118,7 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
                 id="phone"
                 type="tel"
                 value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
+                onChange={handlePhoneNumberChange}
                 onKeyPress={(e) => e.key === "Enter" && handleSearch()}
                 placeholder="Enter phone number"
                 className="pl-10 h-12 text-base"
@@ -165,10 +189,16 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
                                   {visitor.last_visit_details.laptop_model}
                                 </p>
                               )}
+                              {visitor.last_visit_details?.is_vendor && (
+                                <p className="text-xs text-green-600 mt-1">
+                                  <span className="font-medium">Vendor:</span> {visitor.last_visit_details.company}
+                                  {visitor.last_visit_details.person_in_charge &&
+                                    ` (Contact: ${visitor.last_visit_details.person_in_charge})`}
+                                </p>
+                              )}
                             </div>
                           )}
                         </div>
-
                         <Button
                           onClick={() => onVisitorSelect(visitor)}
                           className="ml-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
@@ -199,10 +229,7 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
               <UserPlus className="h-12 w-12 text-blue-600 mx-auto mb-3" />
               <h3 className="text-lg font-medium text-gray-900 mb-2">New Visitor</h3>
               <p className="text-gray-600 text-base mb-4">Register a first-time visitor</p>
-              <Button
-                onClick={onNewVisitor}
-                className="bg-[#2532a1] text-white"
-              >
+              <Button onClick={onNewVisitor} className="bg-[#2532a1] text-white">
                 <UserPlus className="h-4 w-4 mr-2" />
                 Register New Visitor
               </Button>

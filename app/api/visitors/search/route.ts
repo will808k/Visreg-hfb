@@ -15,17 +15,16 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    // Fix: Look for 'phone' parameter instead of 'q'
     const phoneQuery = searchParams.get("phone")
-    const generalQuery = searchParams.get("q")
 
-    const query = phoneQuery || generalQuery
-
-    if (!query || query.length < 3) {
+    if (!phoneQuery || phoneQuery.length < 3) {
       return NextResponse.json([])
     }
 
-    // Search for visitors by phone number (primary) and name (secondary)
+    // Clean the phone number for better matching
+    const cleanedPhone = phoneQuery.replace(/\D/g, "")
+
+    // Search for visitors by phone number with flexible matching
     const [visitors] = await pool.execute(
       `
       SELECT 
@@ -40,36 +39,104 @@ export async function GET(request: NextRequest) {
           WHERE vis.visitor_id = v.id
         ) as last_visit,
         (
-          SELECT JSON_OBJECT(
-            'reason', vis2.reason,
-            'office', vis2.office,
-            'has_laptop', vis2.has_laptop,
-            'laptop_brand', vis2.laptop_brand,
-            'laptop_model', vis2.laptop_model,
-            'is_vendor', CASE WHEN vis2.company IS NOT NULL THEN true ELSE false END,
-            'company', vis2.company,
-            'person_in_charge', vis2.person_in_charge
-          )
+          SELECT vis2.reason
           FROM visits vis2 
           WHERE vis2.visitor_id = v.id 
           ORDER BY vis2.sign_in_time DESC 
           LIMIT 1
-        ) as last_visit_details
+        ) as last_reason,
+        (
+          SELECT vis2.office
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_office,
+        (
+          SELECT vis2.has_laptop
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_has_laptop,
+        (
+          SELECT vis2.laptop_brand
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_laptop_brand,
+        (
+          SELECT vis2.laptop_model
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_laptop_model,
+        (
+          SELECT vis2.company
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_company,
+        (
+          SELECT vis2.person_in_charge
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_person_in_charge
       FROM visitors v
-      WHERE v.phone_number LIKE ? OR v.name LIKE ?
-      ORDER BY v.created_at DESC
+      WHERE 
+        REPLACE(REPLACE(REPLACE(REPLACE(v.phone_number, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ? 
+        OR v.phone_number LIKE ?
+        OR v.name LIKE ?
+      ORDER BY 
+        CASE 
+          WHEN REPLACE(REPLACE(REPLACE(REPLACE(v.phone_number, ' ', ''), '-', ''), '(', ''), ')', '') = ? THEN 1
+          WHEN REPLACE(REPLACE(REPLACE(REPLACE(v.phone_number, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ? THEN 2
+          WHEN v.phone_number LIKE ? THEN 3
+          ELSE 4
+        END,
+        v.created_at DESC
       LIMIT 10`,
-      [`%${query}%`, `%${query}%`],
+      [
+        `%${cleanedPhone}%`, // Cleaned phone search
+        `%${phoneQuery}%`, // Original phone search
+        `%${phoneQuery}%`, // Name search
+        cleanedPhone, // Exact cleaned phone match (highest priority)
+        `${cleanedPhone}%`, // Cleaned phone starts with
+        `%${phoneQuery}%`, // Original phone contains
+      ],
     )
 
-    const formattedVisitors = (visitors as any[]).map((visitor) => ({
-      id: visitor.id,
-      name: visitor.name,
-      phone_number: visitor.phone_number,
-      visits: visitor.visits,
-      last_visit: visitor.last_visit,
-      last_visit_details: visitor.last_visit_details ? JSON.parse(visitor.last_visit_details) : null,
-    }))
+    const formattedVisitors = (visitors as any[]).map((visitor) => {
+      // Build last_visit_details object manually to avoid JSON parsing issues
+      let lastVisitDetails = null
+
+      if (visitor.last_reason || visitor.last_office) {
+        lastVisitDetails = {
+          reason: visitor.last_reason || "",
+          office: visitor.last_office || "",
+          has_laptop: Boolean(visitor.last_has_laptop),
+          laptop_brand: visitor.last_laptop_brand || undefined,
+          laptop_model: visitor.last_laptop_model || undefined,
+          is_vendor: Boolean(visitor.last_company && visitor.last_company.trim() !== ""),
+          company: visitor.last_company || undefined,
+          person_in_charge: visitor.last_person_in_charge || undefined,
+        }
+      }
+
+      return {
+        id: visitor.id,
+        name: visitor.name,
+        phone_number: visitor.phone_number,
+        visits: visitor.visits,
+        last_visit: visitor.last_visit,
+        last_visit_details: lastVisitDetails,
+      }
+    })
 
     return NextResponse.json(formattedVisitors)
   } catch (error) {
