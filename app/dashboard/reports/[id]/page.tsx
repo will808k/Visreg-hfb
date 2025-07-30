@@ -19,6 +19,7 @@ import {
   FileText,
   CheckCircle,
   XCircle,
+  Building2,
 } from "lucide-react"
 import toast from "react-hot-toast"
 
@@ -30,6 +31,8 @@ interface Visit {
   has_laptop: boolean
   laptop_brand: string | null
   laptop_model: string | null
+  company: string | null
+  person_in_charge: string | null
   photo: string | null
   id_photo_front: string | null
   id_photo_back: string | null
@@ -276,6 +279,7 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                     <TableHead>Visit Details</TableHead>
                     <TableHead>Card No.</TableHead>
                     <TableHead>Purpose & Office</TableHead>
+                    <TableHead>Vendor Info</TableHead>
                     <TableHead>Duration</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Branch</TableHead>
@@ -337,6 +341,24 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                             </div>
                           )}
                         </div>
+                      </TableCell>
+                      <TableCell>
+                        {visit.company ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center space-x-1">
+                              <Building2 className="h-3 w-3 text-green-600" />
+                              <span className="font-medium text-sm">{visit.company}</span>
+                            </div>
+                            {visit.person_in_charge && (
+                              <p className="text-xs text-gray-500">Contact: {visit.person_in_charge}</p>
+                            )}
+                            <Badge variant="outline" className="bg-green-50 text-green-700 text-xs">
+                              Vendor
+                            </Badge>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500 text-sm">Regular Visit</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-1">

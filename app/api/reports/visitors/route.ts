@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     const page = Number.parseInt(searchParams.get("page") || "1")
     const limit = Number.parseInt(searchParams.get("limit") || "10")
     const search = searchParams.get("search") || ""
+    const vendorFilter = searchParams.get("vendor") || "all"
     const offset = (page - 1) * limit
 
     // Get user info to determine branch filtering
@@ -36,6 +37,13 @@ export async function GET(request: NextRequest) {
     if (search.trim()) {
       whereClause += " AND vis.name LIKE ?"
       params.push(`%${search}%`)
+    }
+
+    // Add vendor filtering
+    if (vendorFilter === "vendors") {
+      whereClause += " AND EXISTS (SELECT 1 FROM visits v WHERE v.visitor_id = vis.id AND v.company IS NOT NULL)"
+    } else if (vendorFilter === "regular") {
+      whereClause += " AND NOT EXISTS (SELECT 1 FROM visits v WHERE v.visitor_id = vis.id AND v.company IS NOT NULL)"
     }
 
     // Add branch filtering for non-admin users

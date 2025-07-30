@@ -45,7 +45,10 @@ export async function GET(request: NextRequest) {
             'office', vis2.office,
             'has_laptop', vis2.has_laptop,
             'laptop_brand', vis2.laptop_brand,
-            'laptop_model', vis2.laptop_model
+            'laptop_model', vis2.laptop_model,
+            'is_vendor', CASE WHEN vis2.company IS NOT NULL THEN true ELSE false END,
+            'company', vis2.company,
+            'person_in_charge', vis2.person_in_charge
           )
           FROM visits vis2 
           WHERE vis2.visitor_id = v.id 

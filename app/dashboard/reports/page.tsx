@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Search, Eye, Users, TrendingUp, ChevronLeft, ChevronRight, Calendar } from "lucide-react"
 import toast from "react-hot-toast"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Visitor {
   id: number
@@ -40,8 +41,9 @@ export default function ReportsPage() {
     hasPrev: false,
   })
   const router = useRouter()
+  const [vendorFilter, setVendorFilter] = useState<string>("all")
 
-  const fetchVisitors = async (page = 1, search = "") => {
+  const fetchVisitors = async (page = 1, search = "", vendorFilterValue = vendorFilter) => {
     try {
       setLoading(true)
       const token = localStorage.getItem("token")
@@ -50,11 +52,14 @@ export default function ReportsPage() {
         return
       }
 
-      const response = await fetch(`/api/reports/visitors?page=${page}&limit=10&search=${encodeURIComponent(search)}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        `/api/reports/visitors?page=${page}&limit=10&search=${encodeURIComponent(search)}&vendor=${vendorFilterValue}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      })
+      )
 
       if (response.status === 401) {
         localStorage.removeItem("token")
@@ -84,14 +89,14 @@ export default function ReportsPage() {
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      fetchVisitors(1, searchTerm)
+      fetchVisitors(1, searchTerm, vendorFilter)
     }, 300)
 
     return () => clearTimeout(timeoutId)
-  }, [searchTerm])
+  }, [searchTerm, vendorFilter])
 
   const handlePageChange = (newPage: number) => {
-    fetchVisitors(newPage, searchTerm)
+    fetchVisitors(newPage, searchTerm, vendorFilter)
   }
 
   const handleViewDetails = (visitorId: number) => {
@@ -202,8 +207,8 @@ export default function ReportsPage() {
         </CardHeader>
         <CardContent>
           {/* Search */}
-          <div className="flex items-center space-x-2 mb-6">
-            <div className="relative flex-1">
+          <div className="flex items-center space-x-4">
+            <div className="relative">
               <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search visitors by name..."
@@ -212,6 +217,16 @@ export default function ReportsPage() {
                 className="pl-8"
               />
             </div>
+            <Select value={vendorFilter} onValueChange={setVendorFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Visitors</SelectItem>
+                <SelectItem value="vendors">Vendors Only</SelectItem>
+                <SelectItem value="regular">Regular Visitors</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Visitors Table */}

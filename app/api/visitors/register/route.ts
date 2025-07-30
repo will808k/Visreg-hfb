@@ -40,6 +40,9 @@ export async function POST(request: NextRequest) {
       visitor_id, // For returning visitors
       is_new_visitor = true,
       digital_card_no: manualCardNo, // Manual card number input
+      is_vendor = false,
+      company,
+      person_in_charge,
     } = data
 
     // Validate required fields - now including phone_number
@@ -121,9 +124,9 @@ export async function POST(request: NextRequest) {
     const [visitResult] = await pool.execute(
       `INSERT INTO visits (
         visitor_id, digital_card_no, reason, office, branch_id, has_laptop, 
-        laptop_brand, laptop_model, photo, id_photo_front, id_photo_back, 
+        laptop_brand, laptop_model, company, person_in_charge, photo, id_photo_front, id_photo_back, 
         sign_in_time, registered_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         finalVisitorId,
         digitalCardNo,
@@ -133,6 +136,8 @@ export async function POST(request: NextRequest) {
         has_laptop,
         laptop_brand || null,
         laptop_model || null,
+        is_vendor ? company || null : null,
+        is_vendor ? person_in_charge || null : null,
         photoBuffer,
         idFrontBuffer,
         idBackBuffer,

@@ -72,6 +72,9 @@ interface ExistingVisitor {
     has_laptop: boolean
     laptop_brand?: string
     laptop_model?: string
+    is_vendor: boolean
+    company?: string
+    person_in_charge?: string
   } | null
 }
 
@@ -91,7 +94,10 @@ export default function VisitorRegistration() {
     has_laptop: false,
     laptop_brand: "",
     laptop_model: "",
-    digital_card_no: "", // Add digital card number field
+    digital_card_no: "",
+    is_vendor: false,
+    company: "",
+    person_in_charge: "",
   })
 
   const [userBranch, setUserBranch] = useState<Branch | null>(null)
@@ -196,6 +202,9 @@ export default function VisitorRegistration() {
       laptop_brand: "",
       laptop_model: "",
       digital_card_no: "",
+      is_vendor: false,
+      company: "",
+      person_in_charge: "",
     })
   }
 
@@ -214,6 +223,9 @@ export default function VisitorRegistration() {
       laptop_brand: visitor.last_visit_details?.laptop_brand || "",
       laptop_model: visitor.last_visit_details?.laptop_model || "",
       digital_card_no: "",
+      is_vendor: visitor.last_visit_details?.is_vendor || false,
+      company: visitor.last_visit_details?.company || "",
+      person_in_charge: visitor.last_visit_details?.person_in_charge || "",
     })
   }
 
@@ -332,6 +344,9 @@ export default function VisitorRegistration() {
       laptop_brand: "",
       laptop_model: "",
       digital_card_no: "",
+      is_vendor: false,
+      company: "",
+      person_in_charge: "",
     })
     setPhoto(null)
     setIdPhotoFront(null)
@@ -422,6 +437,7 @@ export default function VisitorRegistration() {
           <div className="flex items-center space-x-4">
             <div className="flex items-center justify-center">
               <Image src="/logo1.png" alt="MarketPro Logo" width={200} height={200} className="object-contain" />
+              {/* <h1 className="text-2xl font-bold text-blue-900">VRM</h1> */}
             </div>
           </div>
           <Button onClick={handleLogout} variant="outline" className="text-white bg-[#2532a1]">
@@ -532,7 +548,7 @@ export default function VisitorRegistration() {
                             )}
                           </div>
 
-                           <div>
+                          <div>
                             <Label htmlFor="phone_number" className="text-gray-700 font-medium text-base">
                               Phone Number *
                             </Label>
@@ -545,7 +561,6 @@ export default function VisitorRegistration() {
                               required
                             />
                           </div>
-
 
                           <div>
                             <Label htmlFor="digital_card_no" className="text-gray-700 font-medium text-base">
@@ -672,6 +687,63 @@ export default function VisitorRegistration() {
                                   className="mt-1 h-10 text-base"
                                   placeholder="e.g., MacBook Pro"
                                   required={formData.has_laptop}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Vendor Information */}
+                      <Card className="modern-shadow border-0">
+                        <CardHeader>
+                          <CardTitle className="flex items-center text-xl">
+                            <Building2 className="h-5 w-5 mr-2 text-blue-600" />
+                            Vendor Information
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div className="flex items-center space-x-3">
+                            <Checkbox
+                              id="is_vendor"
+                              checked={formData.is_vendor}
+                              onCheckedChange={(checked) =>
+                                setFormData((prev) => ({ ...prev, is_vendor: checked as boolean }))
+                              }
+                            />
+                            <Label htmlFor="is_vendor" className="text-gray-700 font-medium text-base">
+                              This is a vendor visit
+                            </Label>
+                          </div>
+
+                          {formData.is_vendor && (
+                            <div className="grid grid-cols-1 gap-4 mt-4 p-4 bg-green-50 rounded-lg">
+                              <div>
+                                <Label htmlFor="company" className="text-gray-700 font-medium text-base">
+                                  Company Name *
+                                </Label>
+                                <Input
+                                  id="company"
+                                  value={formData.company}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, company: e.target.value }))}
+                                  className="mt-1 h-10 text-base"
+                                  placeholder="e.g., ABC Technologies"
+                                  required={formData.is_vendor}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="person_in_charge" className="text-gray-700 font-medium text-base">
+                                  Person in Charge *
+                                </Label>
+                                <Input
+                                  id="person_in_charge"
+                                  value={formData.person_in_charge}
+                                  onChange={(e) =>
+                                    setFormData((prev) => ({ ...prev, person_in_charge: e.target.value }))
+                                  }
+                                  className="mt-1 h-10 text-base"
+                                  placeholder="e.g., John Smith"
+                                  required={formData.is_vendor}
                                 />
                               </div>
                             </div>
