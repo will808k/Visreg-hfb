@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   Camera,
   Upload,
@@ -29,6 +30,9 @@ import {
   Eye,
   AlertCircle,
   ArrowLeft,
+  Package,
+  Plus,
+  X,
 } from "lucide-react"
 import toast from "react-hot-toast"
 import { VisitorPhoto } from "@/components/visitor-photo"
@@ -58,6 +62,12 @@ interface Visitor {
   branch_name: string
   registered_by_name: string
   total_visits?: number
+  other_items?: string[]
+  visitee_name?: string
+  id_photo_front?: string
+  id_photo_back?: string
+  company?: string
+  person_in_charge?: string
 }
 
 interface ExistingVisitor {
@@ -84,6 +94,8 @@ export default function VisitorRegistration() {
   const [registrationStep, setRegistrationStep] = useState<"visitor-type" | "form">("visitor-type")
   const [isNewVisitor, setIsNewVisitor] = useState(true)
   const [selectedVisitor, setSelectedVisitor] = useState<ExistingVisitor | null>(null)
+  const [selectedVisitorDetails, setSelectedVisitorDetails] = useState<Visitor | null>(null)
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
 
   // Registration form state
   const [formData, setFormData] = useState({
@@ -98,6 +110,8 @@ export default function VisitorRegistration() {
     is_vendor: false,
     company: "",
     person_in_charge: "",
+    other_items: [] as string[], // New field for other items
+    visitee_name: "", // New field for visitee name
   })
 
   const [userBranch, setUserBranch] = useState<Branch | null>(null)
@@ -205,6 +219,8 @@ export default function VisitorRegistration() {
       is_vendor: false,
       company: "",
       person_in_charge: "",
+      other_items: [], // Reset other items
+      visitee_name: "", // Reset visitee name
     })
   }
 
@@ -226,6 +242,8 @@ export default function VisitorRegistration() {
       is_vendor: visitor.last_visit_details?.is_vendor || false,
       company: visitor.last_visit_details?.company || "",
       person_in_charge: visitor.last_visit_details?.person_in_charge || "",
+      other_items: [], // Initialize as empty for returning visitors
+      visitee_name: "", // Initialize as empty
     })
   }
 
@@ -334,6 +352,11 @@ export default function VisitorRegistration() {
     window.location.href = "/login"
   }
 
+  const handleViewDetails = (visitor: Visitor) => {
+    setSelectedVisitorDetails(visitor)
+    setIsDetailsDialogOpen(true)
+  }
+
   const resetForm = () => {
     setFormData({
       name: "",
@@ -347,6 +370,8 @@ export default function VisitorRegistration() {
       is_vendor: false,
       company: "",
       person_in_charge: "",
+      other_items: [], // Reset other items
+      visitee_name: "", // Reset visitee name
     })
     setPhoto(null)
     setIdPhotoFront(null)
@@ -367,6 +392,27 @@ export default function VisitorRegistration() {
 
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString()
+  }
+
+  const addOtherItem = () => {
+    setFormData((prev) => ({
+      ...prev,
+      other_items: [...prev.other_items, ""],
+    }))
+  }
+
+  const updateOtherItem = (index: number, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      other_items: prev.other_items.map((item, i) => (i === index ? value : item)),
+    }))
+  }
+
+  const removeOtherItem = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      other_items: prev.other_items.filter((_, i) => i !== index),
+    }))
   }
 
   if (isSubmitted) {
@@ -639,6 +685,33 @@ export default function VisitorRegistration() {
                         </CardContent>
                       </Card>
 
+                      {/* Visitee Information */}
+                      <Card className="modern-shadow border-0">
+                        <CardHeader>
+                          <CardTitle className="flex items-center text-xl">
+                            <User className="h-5 w-5 mr-2 text-blue-600" />
+                            Visit Information
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div>
+                            <Label htmlFor="visitee_name" className="text-gray-700 font-medium text-base">
+                              Person to Visit (Optional)
+                            </Label>
+                            <Input
+                              id="visitee_name"
+                              value={formData.visitee_name}
+                              onChange={(e) => setFormData((prev) => ({ ...prev, visitee_name: e.target.value }))}
+                              className="mt-1 h-12 text-base"
+                              placeholder="Enter name of person being visited"
+                            />
+                            <p className="text-sm text-gray-500 mt-1">
+                              Optional - Leave empty if not visiting a specific person
+                            </p>
+                          </div>
+                        </CardContent>
+                      </Card>
+
                       {/* Laptop Information */}
                       <Card className="modern-shadow border-0">
                         <CardHeader>
@@ -691,6 +764,58 @@ export default function VisitorRegistration() {
                               </div>
                             </div>
                           )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Other Items */}
+                      <Card className="modern-shadow border-0">
+                        <CardHeader>
+                          <CardTitle className="flex items-center text-xl">
+                            <Package className="h-5 w-5 mr-2 text-blue-600" />
+                            Other Items
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                          <div>
+                            <Label className="text-gray-700 font-medium text-base">
+                              Other Items Being Carried (Optional)
+                            </Label>
+                            <p className="text-sm text-gray-500 mb-3">
+                              Add any other items you're carrying (bags, equipment, etc.)
+                            </p>
+
+                            <div className="space-y-3">
+                              {formData.other_items.map((item, index) => (
+                                <div key={index} className="flex items-center space-x-2">
+                                  <Input
+                                    value={item}
+                                    onChange={(e) => updateOtherItem(index, e.target.value)}
+                                    placeholder={`Item ${index + 1}`}
+                                    className="flex-1 h-10 text-base"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => removeOtherItem(index)}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ))}
+
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={addOtherItem}
+                                className="w-full h-10 border-dashed border-2 hover:bg-blue-50 text-base bg-transparent"
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Item
+                              </Button>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
 
@@ -1084,27 +1209,38 @@ export default function VisitorRegistration() {
                               )}
                             </TableCell>
                             <TableCell className="text-right">
-                              {!visitor.sign_out_time ? (
+                              <div className="flex items-center justify-end space-x-2">
                                 <Button
-                                  onClick={() => handleSignOut(visitor.id)}
+                                  onClick={() => handleViewDetails(visitor)}
                                   variant="outline"
                                   size="sm"
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 text-sm"
-                                >
-                                  <LogOut className="h-4 w-4 mr-1" />
-                                  Sign Out
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="text-gray-400 cursor-not-allowed text-sm"
-                                  disabled
+                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-sm"
                                 >
                                   <Eye className="h-4 w-4 mr-1" />
-                                  View
+                                  Details
                                 </Button>
-                              )}
+                                {!visitor.sign_out_time ? (
+                                  <Button
+                                    onClick={() => handleSignOut(visitor.id)}
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 text-sm"
+                                  >
+                                    <LogOut className="h-4 w-4 mr-1" />
+                                    Sign Out
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-gray-400 cursor-not-allowed text-sm"
+                                    disabled
+                                  >
+                                    <LogOut className="h-4 w-4 mr-1" />
+                                    Signed Out
+                                  </Button>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -1116,6 +1252,278 @@ export default function VisitorRegistration() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Visitor Details Dialog */}
+        <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold text-gray-900">Visitor Details</DialogTitle>
+            </DialogHeader>
+
+            {selectedVisitorDetails && (
+              <div className="space-y-6">
+                {/* Personal Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-lg">
+                      <User className="h-5 w-5 mr-2 text-blue-600" />
+                      Personal Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex items-center space-x-3">
+                      <VisitorPhoto
+                        photo={selectedVisitorDetails.photo}
+                        name={selectedVisitorDetails.name}
+                        className="h-16 w-16"
+                      />
+                      <div>
+                        <p className="font-semibold text-lg">{selectedVisitorDetails.name}</p>
+                        <Badge variant="outline" className="font-mono text-sm mt-1">
+                          {selectedVisitorDetails.digital_card_no}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Phone Number</Label>
+                        <p className="text-base">{selectedVisitorDetails.phone_number || "Not provided"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Branch</Label>
+                        <p className="text-base">{selectedVisitorDetails.branch_name}</p>
+                      </div>
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Total Visits</Label>
+                        <p className="text-base">{selectedVisitorDetails.total_visits || 1}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Visit Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-lg">
+                      <Building2 className="h-5 w-5 mr-2 text-blue-600" />
+                      Visit Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Office</Label>
+                      <p className="text-base font-medium">{selectedVisitorDetails.office}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Reason</Label>
+                      <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                        {selectedVisitorDetails.reason}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Visitee Name</Label>
+                      <p className="text-base">{selectedVisitorDetails.visitee_name || "Not specified"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-sm font-medium text-gray-500">Sign-in Time</Label>
+                      <div className="flex items-center text-base">
+                        <Clock className="h-4 w-4 mr-1 text-gray-400" />
+                        {new Date(selectedVisitorDetails.sign_in_time).toLocaleString()}
+                      </div>
+                    </div>
+                    {selectedVisitorDetails.sign_out_time && (
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Sign-out Time</Label>
+                        <div className="flex items-center text-base">
+                          <Clock className="h-4 w-4 mr-1 text-gray-400" />
+                          {new Date(selectedVisitorDetails.sign_out_time).toLocaleString()}
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Equipment Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-lg">
+                      <Laptop className="h-5 w-5 mr-2 text-blue-600" />
+                      Equipment Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedVisitorDetails.has_laptop ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center">
+                          <Laptop className="h-4 w-4 mr-2 text-blue-600" />
+                          <span className="font-medium">Has Laptop/Device: Yes</span>
+                        </div>
+                        {selectedVisitorDetails.laptop_brand && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3 p-3 bg-blue-50 rounded-lg">
+                            <div>
+                              <Label className="text-sm font-medium text-gray-500">Brand</Label>
+                              <p className="text-base">{selectedVisitorDetails.laptop_brand}</p>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-medium text-gray-500">Model/Serial</Label>
+                              <p className="text-base">{selectedVisitorDetails.laptop_model}</p>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-gray-600">
+                        <Laptop className="h-4 w-4 mr-2" />
+                        <span>No laptop or electronic devices</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Other Items */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-lg">
+                      <Package className="h-5 w-5 mr-2 text-blue-600" />
+                      Other Items
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {selectedVisitorDetails.other_items && selectedVisitorDetails.other_items.length > 0 ? (
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-500">Items Being Carried:</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedVisitorDetails.other_items.map((item, index) => (
+                            <Badge key={index} variant="outline" className="bg-gray-50">
+                              {item}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-gray-600">
+                        <Package className="h-4 w-4 mr-2" />
+                        <span>No other items declared</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Vendor Information */}
+                {(selectedVisitorDetails.company || selectedVisitorDetails.person_in_charge) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-lg">
+                        <Building2 className="h-5 w-5 mr-2 text-green-600" />
+                        Vendor Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedVisitorDetails.company && (
+                        <div>
+                          <Label className="text-sm font-medium text-gray-500">Company</Label>
+                          <p className="text-base font-medium">{selectedVisitorDetails.company}</p>
+                        </div>
+                      )}
+                      {selectedVisitorDetails.person_in_charge && (
+                        <div>
+                          <Label className="text-sm font-medium text-gray-500">Person in Charge</Label>
+                          <p className="text-base">{selectedVisitorDetails.person_in_charge}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* ID Photos */}
+                {(selectedVisitorDetails.id_photo_front || selectedVisitorDetails.id_photo_back) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-lg">
+                        <Camera className="h-5 w-5 mr-2 text-blue-600" />
+                        ID Photos
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {selectedVisitorDetails.id_photo_front && (
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500 mb-2 block">ID Front</Label>
+                            <div className="border rounded-lg overflow-hidden">
+                              <img
+                                src={`data:image/jpeg;base64,${selectedVisitorDetails.id_photo_front}`}
+                                alt="ID Front"
+                                className="w-full h-48 object-cover"
+                              />
+                            </div>
+                          </div>
+                        )}
+                        {selectedVisitorDetails.id_photo_back && (
+                          <div>
+                            <Label className="text-sm font-medium text-gray-500 mb-2 block">ID Back</Label>
+                            <div className="border rounded-lg overflow-hidden">
+                              <img
+                                src={`data:image/jpeg;base64,${selectedVisitorDetails.id_photo_back}`}
+                                alt="ID Back"
+                                className="w-full h-48 object-cover"
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Status */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-lg">
+                      <CheckCircle className="h-5 w-5 mr-2 text-blue-600" />
+                      Status
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center space-x-4">
+                      <Badge
+                        variant={selectedVisitorDetails.sign_out_time ? "default" : "secondary"}
+                        className={
+                          selectedVisitorDetails.sign_out_time
+                            ? "bg-gray-100 text-gray-700 text-base px-4 py-2"
+                            : "bg-green-100 text-green-700 text-base px-4 py-2"
+                        }
+                      >
+                        {selectedVisitorDetails.sign_out_time ? "Signed Out" : "Currently Active"}
+                      </Badge>
+                      <div className="text-sm text-gray-600">
+                        Registered by: {selectedVisitorDetails.registered_by_name}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-3 pt-4 border-t">
+                  <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
+                    Close
+                  </Button>
+                  {!selectedVisitorDetails.sign_out_time && (
+                    <Button
+                      onClick={() => {
+                        handleSignOut(selectedVisitorDetails.id)
+                        setIsDetailsDialogOpen(false)
+                      }}
+                      className="bg-red-600 hover:bg-red-700 text-white"
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Sign Out Visitor
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   )

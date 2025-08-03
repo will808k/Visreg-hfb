@@ -86,7 +86,21 @@ export async function GET(request: NextRequest) {
           WHERE vis2.visitor_id = v.id 
           ORDER BY vis2.sign_in_time DESC 
           LIMIT 1
-        ) as last_person_in_charge
+        ) as last_person_in_charge,
+        (
+          SELECT vis2.other_items
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_other_items,
+        (
+          SELECT vis2.visitee_name
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_visitee_name
       FROM visitors v
       WHERE 
         REPLACE(REPLACE(REPLACE(REPLACE(v.phone_number, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ? 
@@ -101,21 +115,23 @@ export async function GET(request: NextRequest) {
         END,
         v.created_at DESC
       LIMIT 10`,
-      [
-        `%${cleanedPhone}%`, // Cleaned phone search
-        `%${phoneQuery}%`, // Original phone search
-        `%${phoneQuery}%`, // Name search
-        cleanedPhone, // Exact cleaned phone match (highest priority)
-        `${cleanedPhone}%`, // Cleaned phone starts with
-        `%${phoneQuery}%`, // Original phone contains
-      ],
+      [`%${cleanedPhone}%`, `%${phoneQuery}%`, `%${phoneQuery}%`, cleanedPhone, `${cleanedPhone}%`, `%${phoneQuery}%`],
     )
 
     const formattedVisitors = (visitors as any[]).map((visitor) => {
-      // Build last_visit_details object manually to avoid JSON parsing issues
       let lastVisitDetails = null
 
       if (visitor.last_reason || visitor.last_office) {
+        // Parse other_items if it exists
+        let otherItems = []
+        if (visitor.last_other_items) {
+          try {
+            otherItems = JSON.parse(visitor.last_other_items)
+          } catch (e) {
+            otherItems = []
+          }
+        }
+
         lastVisitDetails = {
           reason: visitor.last_reason || "",
           office: visitor.last_office || "",
@@ -125,6 +141,8 @@ export async function GET(request: NextRequest) {
           is_vendor: Boolean(visitor.last_company && visitor.last_company.trim() !== ""),
           company: visitor.last_company || undefined,
           person_in_charge: visitor.last_person_in_charge || undefined,
+          other_items: otherItems,
+          visitee_name: visitor.last_visitee_name || undefined,
         }
       }
 

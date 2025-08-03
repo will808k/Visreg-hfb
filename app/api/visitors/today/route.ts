@@ -23,56 +23,103 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const status = searchParams.get("status")
+    const statusFilter = searchParams.get("status")
 
-    let whereClause = "WHERE DATE(vis.sign_in_time) = CURDATE()"
+    // Build the WHERE clause
+    let whereClause = "WHERE DATE(v.sign_in_time) = CURDATE()"
     const queryParams: any[] = []
 
     // Add branch filtering for non-admin users
     if (!user.isAdmin && user.branch_id) {
-      whereClause += " AND vis.branch_id = ?"
+      whereClause += " AND v.branch_id = ?"
       queryParams.push(user.branch_id)
     }
 
     // Add status filtering
-    if (status === "active") {
-      whereClause += " AND vis.sign_out_time IS NULL"
-    } else if (status === "inactive") {
-      whereClause += " AND vis.sign_out_time IS NOT NULL"
+    if (statusFilter === "active") {
+      whereClause += " AND v.sign_out_time IS NULL"
+    } else if (statusFilter === "inactive") {
+      whereClause += " AND v.sign_out_time IS NOT NULL"
     }
 
-    const [visitors] = await pool.execute(
-      `SELECT 
-        vis.id,
-        vis.digital_card_no,
-        v.name,
-        vis.reason,
-        vis.office,
-        vis.sign_in_time,
-        vis.sign_out_time,
-        vis.has_laptop,
-        vis.laptop_brand,
-        vis.laptop_model,
-        vis.photo,
+    const [visits] = await pool.execute(
+      `
+      SELECT 
+        v.id,
+        v.visitor_id,
+        v.digital_card_no,
+        v.reason,
+        v.office,
+        v.sign_in_time,
+        v.sign_out_time,
+        v.has_laptop,
+        v.laptop_brand,
+        v.laptop_model,
+        v.photo,
+        v.id_photo_front,
+        v.id_photo_back,
+        v.company,
+        v.person_in_charge,
+        v.other_items,
+        v.visitee_name,
+        vis.name,
+        vis.phone_number,
+        vis.visits as total_visits,
         b.name as branch_name,
-        u.name as registered_by_name,
-        v.visits as total_visits
-      FROM visits vis
-      JOIN visitors v ON vis.visitor_id = v.id
-      LEFT JOIN branches b ON vis.branch_id = b.id
-      LEFT JOIN users u ON vis.registered_by = u.id
+        u.name as registered_by_name
+      FROM visits v
+      JOIN visitors vis ON v.visitor_id = vis.id
+      JOIN branches b ON v.branch_id = b.id
+      JOIN users u ON v.registered_by = u.id
       ${whereClause}
-      ORDER BY vis.sign_in_time DESC`,
+      ORDER BY v.sign_in_time DESC
+      `,
       queryParams,
     )
 
-    // Convert photo buffer to base64 if present
-    const formattedVisitors = (visitors as any[]).map((visitor) => ({
-      ...visitor,
-      photo: visitor.photo ? `data:image/jpeg;base64,${visitor.photo.toString("base64")}` : null,
-    }))
+    const formattedVisits = (visits as any[]).map((visit) => {
+      // Parse other_items if it exists
+      let otherItems = []
+      if (visit.other_items) {
+        try {
+          otherItems = JSON.parse(visit.other_items)
+        } catch (e) {
+          otherItems = []
+        }
+      }
 
-    return NextResponse.json(formattedVisitors)
+      // Convert BLOB data to base64 for photos
+      const photoBase64 = visit.photo ? Buffer.from(visit.photo).toString("base64") : null
+      const idFrontBase64 = visit.id_photo_front ? Buffer.from(visit.id_photo_front).toString("base64") : null
+      const idBackBase64 = visit.id_photo_back ? Buffer.from(visit.id_photo_back).toString("base64") : null
+
+      return {
+        id: visit.id,
+        visitor_id: visit.visitor_id,
+        digital_card_no: visit.digital_card_no,
+        name: visit.name,
+        phone_number: visit.phone_number,
+        reason: visit.reason,
+        office: visit.office,
+        sign_in_time: visit.sign_in_time,
+        sign_out_time: visit.sign_out_time,
+        has_laptop: Boolean(visit.has_laptop),
+        laptop_brand: visit.laptop_brand,
+        laptop_model: visit.laptop_model,
+        photo: photoBase64,
+        id_photo_front: idFrontBase64,
+        id_photo_back: idBackBase64,
+        company: visit.company,
+        person_in_charge: visit.person_in_charge,
+        other_items: otherItems,
+        visitee_name: visit.visitee_name,
+        branch_name: visit.branch_name,
+        registered_by_name: visit.registered_by_name,
+        total_visits: visit.total_visits,
+      }
+    })
+
+    return NextResponse.json(formattedVisits)
   } catch (error) {
     console.error("Error fetching today's visitors:", error)
     return NextResponse.json({ error: "Failed to fetch visitors" }, { status: 500 })

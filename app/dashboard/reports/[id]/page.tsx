@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
 import {
   ArrowLeft,
   Calendar,
@@ -16,10 +18,11 @@ import {
   Laptop,
   CreditCard,
   Camera,
-  FileText,
   CheckCircle,
   XCircle,
   Building2,
+  Eye,
+  Package,
 } from "lucide-react"
 import toast from "react-hot-toast"
 
@@ -43,6 +46,8 @@ interface Visit {
   branch_name: string
   registered_by_name: string
   status: "active" | "completed"
+  other_items: string[] | null
+  visitee_name: string | null
 }
 
 interface Visitor {
@@ -69,7 +74,8 @@ interface VisitorDetailsData {
 export default function VisitorDetailsPage({ params }: { params: { id: string } }) {
   const [data, setData] = useState<VisitorDetailsData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
+  const [isVisitDetailsOpen, setIsVisitDetailsOpen] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -142,8 +148,9 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
     return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
   }
 
-  const openImageModal = (imageData: string) => {
-    setSelectedImage(`data:image/jpeg;base64,${imageData}`)
+  const handleViewVisitDetails = (visit: Visit) => {
+    setSelectedVisit(visit)
+    setIsVisitDetailsOpen(true)
   }
 
   if (loading) {
@@ -283,7 +290,7 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                     <TableHead>Duration</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Branch</TableHead>
-                    <TableHead>Documents</TableHead>
+                    <TableHead>Details</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -293,12 +300,7 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                         <div className="flex items-center space-x-3">
                           <Avatar className="h-10 w-10">
                             {visit.photo ? (
-                              <AvatarImage
-                                src={`data:image/jpeg;base64,${visit.photo}`}
-                                alt="Visit photo"
-                                className="cursor-pointer"
-                                onClick={() => visit.photo && openImageModal(visit.photo)}
-                              />
+                              <AvatarImage src={`data:image/jpeg;base64,${visit.photo}`} alt="Visit photo" />
                             ) : null}
                             <AvatarFallback>
                               <User className="h-4 w-4" />
@@ -375,38 +377,15 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                         <Badge variant="outline">{visit.branch_name}</Badge>
                       </TableCell>
                       <TableCell>
-                        <div className="flex space-x-1">
-                          {visit.id_photo_front && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openImageModal(visit.id_photo_front!)}
-                              title="View ID Front"
-                            >
-                              <Camera className="h-3 w-3" />
-                            </Button>
-                          )}
-                          {visit.id_photo_back && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openImageModal(visit.id_photo_back!)}
-                              title="View ID Back"
-                            >
-                              <Camera className="h-3 w-3" />
-                            </Button>
-                          )}
-                          {visit.signature && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openImageModal(visit.signature!)}
-                              title="View Signature"
-                            >
-                              <FileText className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleViewVisitDetails(visit)}
+                          className="hover:bg-blue-50 hover:text-blue-600"
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Details
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -417,24 +396,254 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
         </CardContent>
       </Card>
 
-      {/* Image Modal */}
-      {selectedImage && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50"
-          onClick={() => setSelectedImage(null)}
-        >
-          <div className="max-w-4xl max-h-4xl p-4">
-            <img
-              src={selectedImage || "/placeholder.svg"}
-              alt="Document"
-              className="max-w-full max-h-full object-contain rounded-lg"
-            />
-            <Button variant="secondary" className="mt-4" onClick={() => setSelectedImage(null)}>
-              Close
-            </Button>
-          </div>
-        </div>
-      )}
+      {/* Visit Details Dialog */}
+      <Dialog open={isVisitDetailsOpen} onOpenChange={setIsVisitDetailsOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-gray-900">Visit Details</DialogTitle>
+          </DialogHeader>
+
+          {selectedVisit && (
+            <div className="space-y-6">
+              {/* Visit Information */}
+              <Card className="modern-shadow border-0">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-xl">
+                    <User className="h-5 w-5 mr-2 text-blue-600" />
+                    Visit Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="text-gray-700 font-medium text-base">Sign In Time</Label>
+                      <div className="text-base flex items-center mt-1">
+                        <Clock className="h-4 w-4 mr-2 text-gray-400" />
+                        {formatDateTime(selectedVisit.sign_in_time)}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-gray-700 font-medium text-base">Sign Out Time</Label>
+                      <div className="text-base mt-1">
+                        {selectedVisit.sign_out_time ? (
+                          <div className="flex items-center">
+                            <Clock className="h-4 w-4 mr-2 text-gray-400" />
+                            {formatDateTime(selectedVisit.sign_out_time)}
+                          </div>
+                        ) : (
+                          <Badge variant="destructive">Still Active</Badge>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-gray-700 font-medium text-base">Duration</Label>
+                      <div className="text-base mt-1">{formatDuration(selectedVisit.duration_minutes)}</div>
+                    </div>
+                    <div>
+                      <Label className="text-gray-700 font-medium text-base">Status</Label>
+                      <div className="mt-1">
+                        <Badge variant={selectedVisit.status === "completed" ? "default" : "destructive"}>
+                          {selectedVisit.status === "completed" ? "Completed" : "Active"}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-gray-700 font-medium text-base">Office</Label>
+                      <div className="text-base flex items-center mt-1">
+                        <MapPin className="h-4 w-4 mr-2 text-gray-400" />
+                        {selectedVisit.office}
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-gray-700 font-medium text-base">Reason</Label>
+                      <div className="text-base mt-1">
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                          {selectedVisit.reason}
+                        </Badge>
+                      </div>
+                    </div>
+                    {selectedVisit.visitee_name && (
+                      <div>
+                        <Label className="text-gray-700 font-medium text-base">Visiting</Label>
+                        <div className="text-base flex items-center mt-1">
+                          <User className="h-4 w-4 mr-2 text-gray-400" />
+                          {selectedVisit.visitee_name}
+                        </div>
+                      </div>
+                    )}
+                    <div>
+                      <Label className="text-gray-700 font-medium text-base">Branch</Label>
+                      <div className="mt-1">
+                        <Badge variant="outline">{selectedVisit.branch_name}</Badge>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-gray-700 font-medium text-base">Registered By</Label>
+                      <div className="text-base mt-1">{selectedVisit.registered_by_name}</div>
+                    </div>
+                    {selectedVisit.digital_card_no && (
+                      <div>
+                        <Label className="text-gray-700 font-medium text-base">Digital Card</Label>
+                        <div className="mt-1">
+                          <Badge variant="outline" className="font-mono">
+                            <CreditCard className="h-3 w-3 mr-1" />
+                            {selectedVisit.digital_card_no}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Equipment Information */}
+              {selectedVisit.has_laptop && (
+                <Card className="modern-shadow border-0">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <Laptop className="h-5 w-5 mr-2 text-blue-600" />
+                      Equipment Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
+                      <div>
+                        <Label className="text-gray-700 font-medium text-base">Brand</Label>
+                        <div className="text-base mt-1">{selectedVisit.laptop_brand}</div>
+                      </div>
+                      <div>
+                        <Label className="text-gray-700 font-medium text-base">Serial No.</Label>
+                        <div className="text-base mt-1">{selectedVisit.laptop_model}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Other Items */}
+              {selectedVisit.other_items && selectedVisit.other_items.length > 0 && (
+                <Card className="modern-shadow border-0">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <Package className="h-5 w-5 mr-2 text-blue-600" />
+                      Other Items
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-2">
+                      {selectedVisit.other_items.map((item, index) => (
+                        <Badge key={index} variant="outline" className="bg-gray-50">
+                          {item}
+                        </Badge>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Vendor Information */}
+              {selectedVisit.company && (
+                <Card className="modern-shadow border-0">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <Building2 className="h-5 w-5 mr-2 text-green-600" />
+                      Vendor Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg">
+                      <div>
+                        <Label className="text-gray-700 font-medium text-base">Company</Label>
+                        <div className="text-base mt-1">{selectedVisit.company}</div>
+                      </div>
+                      {selectedVisit.person_in_charge && (
+                        <div>
+                          <Label className="text-gray-700 font-medium text-base">Contact Person</Label>
+                          <div className="text-base mt-1">{selectedVisit.person_in_charge}</div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Photos and Documents */}
+              {(selectedVisit.photo ||
+                selectedVisit.id_photo_front ||
+                selectedVisit.id_photo_back ||
+                selectedVisit.signature) && (
+                <Card className="modern-shadow border-0">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <Camera className="h-5 w-5 mr-2 text-blue-600" />
+                      Photos & Documents
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {selectedVisit.photo && (
+                        <div className="space-y-3">
+                          <Label className="text-gray-700 font-medium text-base">Visitor Photo</Label>
+                          <div className="border rounded-lg overflow-hidden bg-gray-50">
+                            <img
+                              src={`data:image/jpeg;base64,${selectedVisit.photo}`}
+                              alt="Visitor Photo"
+                              className="w-full h-48 object-cover"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {selectedVisit.id_photo_front && (
+                        <div className="space-y-3">
+                          <Label className="text-gray-700 font-medium text-base">ID Front</Label>
+                          <div className="border rounded-lg overflow-hidden bg-gray-50">
+                            <img
+                              src={`data:image/jpeg;base64,${selectedVisit.id_photo_front}`}
+                              alt="ID Front"
+                              className="w-full h-48 object-cover"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {selectedVisit.id_photo_back && (
+                        <div className="space-y-3">
+                          <Label className="text-gray-700 font-medium text-base">ID Back</Label>
+                          <div className="border rounded-lg overflow-hidden bg-gray-50">
+                            <img
+                              src={`data:image/jpeg;base64,${selectedVisit.id_photo_back}`}
+                              alt="ID Back"
+                              className="w-full h-48 object-cover"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {selectedVisit.signature && (
+                        <div className="space-y-3">
+                          <Label className="text-gray-700 font-medium text-base">Signature</Label>
+                          <div className="border rounded-lg overflow-hidden bg-gray-50">
+                            <img
+                              src={`data:image/jpeg;base64,${selectedVisit.signature}`}
+                              alt="Signature"
+                              className="w-full h-32 object-contain bg-white"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                <Button variant="outline" onClick={() => setIsVisitDetailsOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

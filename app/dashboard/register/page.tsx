@@ -10,7 +10,20 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Camera, Upload, Clock, User, Building2, Laptop, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react"
+import {
+  Camera,
+  Upload,
+  Clock,
+  User,
+  Building2,
+  Laptop,
+  CheckCircle,
+  AlertCircle,
+  ArrowLeft,
+  Package,
+  Plus,
+  X,
+} from "lucide-react"
 import toast from "react-hot-toast"
 import { VisitorSearch } from "@/components/visitor-search"
 
@@ -55,6 +68,8 @@ export default function DashboardRegister() {
     is_vendor: false,
     company: "",
     person_in_charge: "",
+    other_items: [] as string[], // New field
+    visitee_name: "", // New field
   })
 
   const [branches, setBranches] = useState<Branch[]>([])
@@ -67,6 +82,7 @@ export default function DashboardRegister() {
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [digitalCardNo, setDigitalCardNo] = useState<string>("")
   const [branchesLoading, setBranchesLoading] = useState(true)
+  const [otherItemsInput, setOtherItemsInput] = useState("")
 
   const photoRef = useRef<HTMLInputElement>(null)
   const idFrontRef = useRef<HTMLInputElement>(null)
@@ -113,6 +129,8 @@ export default function DashboardRegister() {
       is_vendor: false,
       company: "",
       person_in_charge: "",
+      other_items: [] as string[],
+      visitee_name: "",
     })
   }
 
@@ -134,6 +152,8 @@ export default function DashboardRegister() {
       is_vendor: visitor.last_visit_details?.is_vendor || false,
       company: visitor.last_visit_details?.company || "",
       person_in_charge: visitor.last_visit_details?.person_in_charge || "",
+      other_items: [] as string[],
+      visitee_name: "",
     })
   }
 
@@ -239,6 +259,8 @@ export default function DashboardRegister() {
       is_vendor: false,
       company: "",
       person_in_charge: "",
+      other_items: [] as string[],
+      visitee_name: "",
     })
     setPhoto(null)
     setIdPhotoFront(null)
@@ -250,6 +272,23 @@ export default function DashboardRegister() {
     setRegistrationStep("visitor-type")
     setSelectedVisitor(null)
     setIsNewVisitor(true)
+  }
+
+  const handleAddItem = () => {
+    if (otherItemsInput.trim() !== "") {
+      setFormData((prev) => ({
+        ...prev,
+        other_items: [...prev.other_items, otherItemsInput.trim()],
+      }))
+      setOtherItemsInput("")
+    }
+  }
+
+  const handleRemoveItem = (itemToRemove: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      other_items: prev.other_items.filter((item) => item !== itemToRemove),
+    }))
   }
 
   if (isSubmitted) {
@@ -480,6 +519,20 @@ export default function DashboardRegister() {
                         </div>
                       </>
                     )}
+
+                    <div>
+                      <Label htmlFor="visitee_name" className="text-gray-700 font-medium text-base">
+                        Visitee Name *
+                      </Label>
+                      <Input
+                        id="visitee_name"
+                        value={formData.visitee_name}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, visitee_name: e.target.value }))}
+                        className="mt-1 h-12 text-base"
+                        placeholder="Enter name of person being visited"
+                        required
+                      />
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -588,6 +641,51 @@ export default function DashboardRegister() {
                             required={formData.is_vendor}
                           />
                         </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Other Items */}
+                <Card className="modern-shadow border-0">
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <Package className="h-5 w-5 mr-2 text-blue-600" />
+                      Other Items
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex">
+                      <Input
+                        type="text"
+                        placeholder="Enter item"
+                        value={otherItemsInput}
+                        onChange={(e) => setOtherItemsInput(e.target.value)}
+                        className="h-12 text-base"
+                      />
+                      <Button type="button" onClick={handleAddItem} className="ml-2 h-12">
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {formData.other_items.length > 0 && (
+                      <div className="mt-4">
+                        {formData.other_items.map((item) => (
+                          <Badge
+                            key={item}
+                            className="mr-2 mb-2 bg-gray-100 text-gray-800 rounded-full px-3 py-1 flex items-center"
+                          >
+                            {item}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleRemoveItem(item)}
+                              className="ml-2"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </Badge>
+                        ))}
                       </div>
                     )}
                   </CardContent>

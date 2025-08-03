@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, EyeOff, Shield, Users, BarChart3 } from "lucide-react"
 import toast from "react-hot-toast"
+import Image from "next/image"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -59,12 +60,11 @@ export default function LoginPage() {
         <div className="hidden lg:block space-y-8">
           <div className="space-y-4">
             <div className="flex items-center space-x-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center">
-                <Shield className="h-7 w-7 text-white" />
-              </div>
-              <div>
-                <h1 className="text-4xl font-bold text-gray-900">VRS</h1>
-                <p className="text-lg text-gray-600">Visitor Registration System</p>
+              <div className="flex items-center space-x-4">
+                  <div className="flex items-center justify-center">
+                      <Image src="/logo1.png" alt="MarketPro Logo" width={200} height={200} className="object-contain" />
+                      <h1 className="text-2xl font-bold text-blue-900">Visitor Registration Management</h1>
+                  </div>
               </div>
             </div>
             <p className="text-xl text-gray-700 leading-relaxed">
@@ -94,9 +94,9 @@ export default function LoginPage() {
         <div className="w-full max-w-md mx-auto">
           <Card className="modern-shadow border-0 bg-white/80 backdrop-blur-sm">
             <CardHeader className="text-center space-y-2">
-              <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              {/* <div className="w-16 h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
                 <Shield className="h-8 w-8 text-white" />
-              </div>
+              </div> */}
               <CardTitle className="text-2xl font-bold text-gray-900">Welcome Back</CardTitle>
               <CardDescription className="text-gray-600 text-base">Sign in to access your dashboard</CardDescription>
             </CardHeader>
