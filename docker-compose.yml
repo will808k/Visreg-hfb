@@ -1,0 +1,51 @@
+version: "3.8"
+
+services:
+  app:
+    image: williamjr082/visreg-hfb-app:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=mysql
+      - DB_USER=visreg
+      - DB_PASSWORD=test@1234
+      - DB_NAME=visreg
+      - JWT_SECRET=MYJWTSECRET
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - /app/node_modules
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_USER: visreg
+      MYSQL_PASSWORD: test@1234
+      MYSQL_DATABASE: visreg
+      MYSQL_ROOT_PASSWORD: rootpassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./visreg.sql:/docker-entrypoint-initdb.d/visreg.sql
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-u",
+          "visreg",
+          "-ptest@1234",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mysql-data:

@@ -1,26 +1,28 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { isAuthenticated, getUser } from "@/lib/client-auth";
 
-export default function Home() {
-  const router = useRouter()
+export default function HomePage() {
+  const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    if (token) {
-      router.push("/dashboard")
+    if (isAuthenticated()) {
+      const user = getUser();
+      if (user?.isAdmin) {
+        router.push("/dashboard");
+      } else {
+        router.push("/register");
+      }
     } else {
-      router.push("/login")
+      router.push("/login");
     }
-  }, [router])
+  }, [router]);
 
   return (
-    <div className="min-h-screen custom-bg flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold custom-text mb-4">Visitor Registration System</h1>
-        <p className="text-gray-600">Loading...</p>
-      </div>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
     </div>
-  )
+  );
 }
