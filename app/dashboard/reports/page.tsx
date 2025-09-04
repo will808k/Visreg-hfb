@@ -1,14 +1,32 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Search,
   Eye,
@@ -26,58 +44,72 @@ import {
   Expand,
   Package,
   Clock,
-} from "lucide-react"
-import toast from "react-hot-toast"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+  Download,
+  FileText,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Visitor {
-  id: number
-  name: string
-  visit_count: number
-  last_visit: string
-  total_visits: number
-  phone_number?: string
+  id: number;
+  name: string;
+  visit_count: number;
+  last_visit: string;
+  total_visits: number;
+  phone_number?: string;
   last_visit_details?: {
-    id: number
-    digital_card_no: string | null
-    reason: string
-    office: string
-    has_laptop: boolean
-    laptop_brand: string | null
-    laptop_model: string | null
-    company: string | null
-    person_in_charge: string | null
-    photo: string | null
-    id_photo_front: string | null
-    id_photo_back: string | null
-    signature: string | null
-    sign_in_time: string
-    sign_out_time: string | null
-    duration_minutes: number | null
-    branch_name: string
-    registered_by_name: string
-    status: "active" | "completed"
-    other_items: string[] | null
-    visitee_name: string | null
-  } | null
+    id: number;
+    digital_card_no: string | null;
+    reason: string;
+    office: string;
+    has_laptop: boolean;
+    laptop_brand: string | null;
+    laptop_model: string | null;
+    company: string | null;
+    person_in_charge: string | null;
+    photo: string | null;
+    id_photo_front: string | null;
+    id_photo_back: string | null;
+    signature: string | null;
+    sign_in_time: string;
+    sign_out_time: string | null;
+    duration_minutes: number | null;
+    branch_name: string;
+    registered_by_name: string;
+    status: "active" | "completed";
+    other_items: string[] | null;
+    visitee_name: string | null;
+  } | null;
 }
 
 interface Pagination {
-  page: number
-  limit: number
-  total: number
-  totalPages: number
-  hasNext: boolean
-  hasPrev: boolean
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
 }
 
 export default function ReportsPage() {
-  const [visitors, setVisitors] = useState<Visitor[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [selectedDate, setSelectedDate] = useState("")
-  const [availableDates, setAvailableDates] = useState<string[]>([])
-  const [datesLoading, setDatesLoading] = useState(false)
+  const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [availableDates, setAvailableDates] = useState<string[]>([]);
+  const [datesLoading, setDatesLoading] = useState(false);
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
     limit: 10,
@@ -85,42 +117,50 @@ export default function ReportsPage() {
     totalPages: 0,
     hasNext: false,
     hasPrev: false,
-  })
-  const [selectedVisitDetails, setSelectedVisitDetails] = useState<Visitor["last_visit_details"] | null>(null)
-  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
-  const router = useRouter()
-  const [vendorFilter, setVendorFilter] = useState<string>("all")
+  });
+  const [selectedVisitDetails, setSelectedVisitDetails] = useState<
+    Visitor["last_visit_details"] | null
+  >(null);
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const router = useRouter();
+  const [vendorFilter, setVendorFilter] = useState<string>("all");
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const fetchAvailableDates = async () => {
     try {
-      setDatesLoading(true)
-      const token = localStorage.getItem("token")
-      if (!token) return
+      setDatesLoading(true);
+      const token = localStorage.getItem("token");
+      if (!token) return;
 
       const response = await fetch("/api/reports/available-dates", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      })
+      });
 
       if (response.ok) {
-        const dates = await response.json()
-        setAvailableDates(dates)
+        const dates = await response.json();
+        setAvailableDates(dates);
       }
     } catch (error) {
-      console.error("Error fetching available dates:", error)
+      console.error("Error fetching available dates:", error);
     } finally {
-      setDatesLoading(false)
+      setDatesLoading(false);
     }
-  }
+  };
 
-  const fetchVisitors = async (page = 1, search = "", vendorFilterValue = vendorFilter, date = selectedDate) => {
+  const fetchVisitors = async (
+    page = 1,
+    search = "",
+    vendorFilterValue = vendorFilter,
+    date = selectedDate
+  ) => {
     try {
-      setLoading(true)
-      const token = localStorage.getItem("token")
+      setLoading(true);
+      const token = localStorage.getItem("token");
       if (!token) {
-        router.push("/login")
-        return
+        router.push("/login");
+        return;
       }
 
       const queryParams = new URLSearchParams({
@@ -129,69 +169,121 @@ export default function ReportsPage() {
         search: search,
         vendor: vendorFilterValue,
         ...(date && { date }),
-      })
+      });
 
       const response = await fetch(`/api/reports/visitors?${queryParams}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      })
+      });
 
       if (response.status === 401) {
-        localStorage.removeItem("token")
-        router.push("/login")
-        return
+        localStorage.removeItem("token");
+        router.push("/login");
+        return;
       }
 
       if (!response.ok) {
-        throw new Error("Failed to fetch visitors")
+        throw new Error("Failed to fetch visitors");
       }
 
-      const data = await response.json()
-      setVisitors(data.visitors || [])
-      setPagination(data.pagination)
+      const data = await response.json();
+      setVisitors(data.visitors || []);
+      setPagination(data.pagination);
     } catch (error) {
-      console.error("Error fetching visitors:", error)
-      toast.error("Failed to load visitor reports")
-      setVisitors([])
+      console.error("Error fetching visitors:", error);
+      toast.error("Failed to load visitor reports");
+      setVisitors([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
+  const handleDownloadReport = async (format: "csv" | "pdf") => {
+    try {
+      setIsDownloading(true);
+      const token = localStorage.getItem("token");
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+
+      const queryParams = new URLSearchParams({
+        format,
+        search: searchTerm,
+        vendor: vendorFilter,
+        ...(selectedDate && { date: selectedDate }),
+      });
+
+      const response = await fetch(`/api/reports/download?${queryParams}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to download report");
+      }
+
+      const contentDisposition = response.headers.get("content-disposition");
+      const filename = contentDisposition
+        ? contentDisposition.split("filename=")[1]?.replace(/"/g, "")
+        : `visitor-report-${selectedDate || "all"}.${format}`;
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success(
+        `Report downloaded successfully as ${format.toUpperCase()}`
+      );
+    } catch (error) {
+      console.error("Error downloading report:", error);
+      toast.error("Failed to download report");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   useEffect(() => {
-    fetchVisitors()
-    fetchAvailableDates()
-  }, [])
+    fetchVisitors();
+    fetchAvailableDates();
+  }, []);
 
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      fetchVisitors(1, searchTerm, vendorFilter, selectedDate)
-    }, 300)
+      fetchVisitors(1, searchTerm, vendorFilter, selectedDate);
+    }, 300);
 
-    return () => clearTimeout(timeoutId)
-  }, [searchTerm, vendorFilter, selectedDate])
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, vendorFilter, selectedDate]);
 
   const handlePageChange = (newPage: number) => {
-    fetchVisitors(newPage, searchTerm, vendorFilter, selectedDate)
-  }
+    fetchVisitors(newPage, searchTerm, vendorFilter, selectedDate);
+  };
 
   const handleViewDetails = (visitorId: number) => {
-    router.push(`/dashboard/reports/${visitorId}`)
-  }
+    router.push(`/dashboard/reports/${visitorId}`);
+  };
 
   const handleExpandDetails = (visitor: Visitor) => {
-    setSelectedVisitDetails(visitor.last_visit_details)
-    setIsDetailsDialogOpen(true)
-  }
+    setSelectedVisitDetails(visitor.last_visit_details);
+    setIsDetailsDialogOpen(true);
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
-    })
-  }
+    });
+  };
 
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString("en-US", {
@@ -200,22 +292,25 @@ export default function ReportsPage() {
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-    })
-  }
+    });
+  };
 
   const formatDuration = (minutes: number | null) => {
-    if (!minutes) return "N/A"
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
-  }
+    if (!minutes) return "N/A";
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
 
   const formatPhoneNumber = (phone: string) => {
-    if (!phone) return ""
-    return phone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")
-  }
+    if (!phone) return "";
+    return phone.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3");
+  };
 
-  const totalVisits = visitors.reduce((sum, visitor) => sum + visitor.visit_count, 0)
+  const totalVisits = visitors.reduce(
+    (sum, visitor) => sum + visitor.visit_count,
+    0
+  );
 
   if (loading) {
     return (
@@ -227,7 +322,9 @@ export default function ReportsPage() {
           {[...Array(4)].map((_, i) => (
             <Card key={i}>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Loading...</CardTitle>
+                <CardTitle className="text-sm font-medium">
+                  Loading...
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
@@ -239,13 +336,16 @@ export default function ReportsPage() {
           <CardContent className="p-6">
             <div className="space-y-4">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-16 bg-gray-200 rounded animate-pulse"></div>
+                <div
+                  key={i}
+                  className="h-16 bg-gray-200 rounded animate-pulse"
+                ></div>
               ))}
             </div>
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -254,8 +354,31 @@ export default function ReportsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Visitor Reports</h1>
-          <p className="text-muted-foreground mt-1">View and analyze visitor statistics and history</p>
+          <p className="text-muted-foreground mt-1">
+            View and analyze visitor statistics and history
+          </p>
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              disabled={isDownloading}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {isDownloading ? "Downloading..." : "Download Report"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleDownloadReport("csv")}>
+              <FileText className="h-4 w-4 mr-2" />
+              Download as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleDownloadReport("pdf")}>
+              <FileText className="h-4 w-4 mr-2" />
+              Download as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Statistics Cards */}
@@ -264,8 +387,12 @@ export default function ReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base font-medium text-blue-700">Total Visitors</p>
-                <p className="text-3xl font-bold text-blue-900">{pagination.total}</p>
+                <p className="text-base font-medium text-blue-700">
+                  Total Visitors
+                </p>
+                <p className="text-3xl font-bold text-blue-900">
+                  {pagination.total}
+                </p>
               </div>
               <div className="p-3 bg-blue-600 rounded-xl">
                 <Users className="h-6 w-6 text-white" />
@@ -277,8 +404,12 @@ export default function ReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base font-medium text-green-700">Total Visits</p>
-                <p className="text-3xl font-bold text-green-900">{totalVisits}</p>
+                <p className="text-base font-medium text-green-700">
+                  Total Visits
+                </p>
+                <p className="text-3xl font-bold text-green-900">
+                  {totalVisits}
+                </p>
               </div>
               <div className="p-3 bg-green-600 rounded-xl">
                 <TrendingUp className="h-6 w-6 text-white" />
@@ -290,9 +421,14 @@ export default function ReportsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base font-medium text-purple-700">Current Page</p>
+                <p className="text-base font-medium text-purple-700">
+                  Current Page
+                </p>
                 <p className="text-3xl font-bold text-purple-900">
-                  {pagination.page} <span className="text-lg text-purple-700">of {pagination.totalPages}</span>
+                  {pagination.page}{" "}
+                  <span className="text-lg text-purple-700">
+                    of {pagination.totalPages}
+                  </span>
                 </p>
               </div>
               <div className="p-3 bg-purple-600 rounded-xl">
@@ -307,7 +443,9 @@ export default function ReportsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Visitor Reports</CardTitle>
-          <CardDescription>View visitor statistics and detailed visit history</CardDescription>
+          <CardDescription>
+            View visitor statistics and detailed visit history
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {/* Search and Filters */}
@@ -349,9 +487,9 @@ export default function ReportsPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setSearchTerm("")
-                    setSelectedDate("")
-                    setVendorFilter("all")
+                    setSearchTerm("");
+                    setSelectedDate("");
+                    setVendorFilter("all");
                   }}
                 >
                   Clear
@@ -366,7 +504,9 @@ export default function ReportsPage() {
               <TableHeader>
                 <TableRow className="border-b">
                   <TableHead>Name</TableHead>
-                  <TableHead className="text-center">Number of Visits</TableHead>
+                  <TableHead className="text-center">
+                    Number of Visits
+                  </TableHead>
                   <TableHead>Last Visit Date</TableHead>
                   <TableHead>Details</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -376,16 +516,23 @@ export default function ReportsPage() {
                 {visitors.length === 0 ? (
                   <TableRow className="border-b">
                     <TableCell colSpan={5} className="text-center py-8">
-                      {searchTerm || selectedDate ? "No visitors found matching your criteria." : "No visitors found."}
+                      {searchTerm || selectedDate
+                        ? "No visitors found matching your criteria."
+                        : "No visitors found."}
                     </TableCell>
                   </TableRow>
                 ) : (
                   visitors.map((visitor) => (
-                    <TableRow key={visitor.id} className="hover:bg-muted/50 border-b">
+                    <TableRow
+                      key={visitor.id}
+                      className="hover:bg-muted/50 border-b"
+                    >
                       <TableCell>
                         <div className="font-medium">{visitor.name}</div>
                         {visitor.phone_number && (
-                          <div className="text-sm text-muted-foreground">{formatPhoneNumber(visitor.phone_number)}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {formatPhoneNumber(visitor.phone_number)}
+                          </div>
                         )}
                       </TableCell>
                       <TableCell className="text-center">
@@ -396,7 +543,9 @@ export default function ReportsPage() {
                       <TableCell>
                         <div className="flex items-center space-x-1">
                           <Calendar className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-sm">{formatDate(visitor.last_visit)}</span>
+                          <span className="text-sm">
+                            {formatDate(visitor.last_visit)}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -411,7 +560,9 @@ export default function ReportsPage() {
                             {selectedDate ? "Visit Details" : "Last Visit"}
                           </Button>
                         ) : (
-                          <span className="text-muted-foreground text-sm">No details</span>
+                          <span className="text-muted-foreground text-sm">
+                            No details
+                          </span>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
@@ -437,7 +588,8 @@ export default function ReportsPage() {
             <div className="flex items-center justify-between space-x-2 py-4">
               <div className="text-sm text-muted-foreground">
                 Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
-                {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} visitors
+                {Math.min(pagination.page * pagination.limit, pagination.total)}{" "}
+                of {pagination.total} visitors
               </div>
               <div className="flex items-center space-x-2">
                 <Button
@@ -474,7 +626,9 @@ export default function ReportsPage() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-gray-900">
-              {selectedDate ? "Visit Details for Selected Date" : "Last Visit Details"}
+              {selectedDate
+                ? "Visit Details for Selected Date"
+                : "Last Visit Details"}
             </DialogTitle>
           </DialogHeader>
 
@@ -491,14 +645,18 @@ export default function ReportsPage() {
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Sign In Time</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Sign In Time
+                      </Label>
                       <div className="text-base flex items-center mt-1">
                         <Clock className="h-4 w-4 mr-2 text-gray-400" />
                         {formatDateTime(selectedVisitDetails.sign_in_time)}
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Sign Out Time</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Sign Out Time
+                      </Label>
                       <div className="text-base mt-1">
                         {selectedVisitDetails.sign_out_time ? (
                           <div className="flex items-center">
@@ -511,35 +669,58 @@ export default function ReportsPage() {
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Duration</Label>
-                      <div className="text-base mt-1">{formatDuration(selectedVisitDetails.duration_minutes)}</div>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Duration
+                      </Label>
+                      <div className="text-base mt-1">
+                        {formatDuration(selectedVisitDetails.duration_minutes)}
+                      </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Status</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Status
+                      </Label>
                       <div className="mt-1">
-                        <Badge variant={selectedVisitDetails.status === "completed" ? "default" : "destructive"}>
-                          {selectedVisitDetails.status === "completed" ? "Completed" : "Active"}
+                        <Badge
+                          variant={
+                            selectedVisitDetails.status === "completed"
+                              ? "default"
+                              : "destructive"
+                          }
+                        >
+                          {selectedVisitDetails.status === "completed"
+                            ? "Completed"
+                            : "Active"}
                         </Badge>
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Office</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Office
+                      </Label>
                       <div className="text-base flex items-center mt-1">
                         <MapPin className="h-4 w-4 mr-2 text-gray-400" />
                         {selectedVisitDetails.office}
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Reason</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Reason
+                      </Label>
                       <div className="text-base mt-1">
-                        <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                        <Badge
+                          variant="secondary"
+                          className="bg-purple-100 text-purple-700"
+                        >
                           {selectedVisitDetails.reason}
                         </Badge>
                       </div>
                     </div>
                     {selectedVisitDetails.visitee_name && (
                       <div>
-                        <Label className="text-gray-700 font-medium text-base">Visiting</Label>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Visiting
+                        </Label>
                         <div className="text-base flex items-center mt-1">
                           <User className="h-4 w-4 mr-2 text-gray-400" />
                           {selectedVisitDetails.visitee_name}
@@ -547,18 +728,28 @@ export default function ReportsPage() {
                       </div>
                     )}
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Branch</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Branch
+                      </Label>
                       <div className="mt-1">
-                        <Badge variant="outline">{selectedVisitDetails.branch_name}</Badge>
+                        <Badge variant="outline">
+                          {selectedVisitDetails.branch_name}
+                        </Badge>
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Registered By</Label>
-                      <div className="text-base mt-1">{selectedVisitDetails.registered_by_name}</div>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Registered By
+                      </Label>
+                      <div className="text-base mt-1">
+                        {selectedVisitDetails.registered_by_name}
+                      </div>
                     </div>
                     {selectedVisitDetails.digital_card_no && (
                       <div>
-                        <Label className="text-gray-700 font-medium text-base">Digital Card</Label>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Digital Card
+                        </Label>
                         <div className="mt-1">
                           <Badge variant="outline" className="font-mono">
                             <CreditCard className="h-3 w-3 mr-1" />
@@ -583,12 +774,20 @@ export default function ReportsPage() {
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
                       <div>
-                        <Label className="text-gray-700 font-medium text-base">Brand</Label>
-                        <div className="text-base mt-1">{selectedVisitDetails.laptop_brand}</div>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Brand
+                        </Label>
+                        <div className="text-base mt-1">
+                          {selectedVisitDetails.laptop_brand}
+                        </div>
                       </div>
                       <div>
-                        <Label className="text-gray-700 font-medium text-base">Serial No.</Label>
-                        <div className="text-base mt-1">{selectedVisitDetails.laptop_model}</div>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Serial No.
+                        </Label>
+                        <div className="text-base mt-1">
+                          {selectedVisitDetails.laptop_model}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -596,25 +795,30 @@ export default function ReportsPage() {
               )}
 
               {/* Other Items */}
-              {selectedVisitDetails.other_items && selectedVisitDetails.other_items.length > 0 && (
-                <Card className="modern-shadow border-0">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-xl">
-                      <Package className="h-5 w-5 mr-2 text-blue-600" />
-                      Other Items
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedVisitDetails.other_items.map((item, index) => (
-                        <Badge key={index} variant="outline" className="bg-gray-50">
-                          {item}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {selectedVisitDetails.other_items &&
+                selectedVisitDetails.other_items.length > 0 && (
+                  <Card className="modern-shadow border-0">
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-xl">
+                        <Package className="h-5 w-5 mr-2 text-blue-600" />
+                        Other Items
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedVisitDetails.other_items.map((item, index) => (
+                          <Badge
+                            key={index}
+                            variant="outline"
+                            className="bg-gray-50"
+                          >
+                            {item}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
               {/* Vendor Information */}
               {selectedVisitDetails.company && (
@@ -628,13 +832,21 @@ export default function ReportsPage() {
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg">
                       <div>
-                        <Label className="text-gray-700 font-medium text-base">Company</Label>
-                        <div className="text-base mt-1">{selectedVisitDetails.company}</div>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Company
+                        </Label>
+                        <div className="text-base mt-1">
+                          {selectedVisitDetails.company}
+                        </div>
                       </div>
                       {selectedVisitDetails.person_in_charge && (
                         <div>
-                          <Label className="text-gray-700 font-medium text-base">Contact Person</Label>
-                          <div className="text-base mt-1">{selectedVisitDetails.person_in_charge}</div>
+                          <Label className="text-gray-700 font-medium text-base">
+                            Contact Person
+                          </Label>
+                          <div className="text-base mt-1">
+                            {selectedVisitDetails.person_in_charge}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -658,7 +870,9 @@ export default function ReportsPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {selectedVisitDetails.photo && (
                         <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">Visitor Photo</Label>
+                          <Label className="text-gray-700 font-medium text-base">
+                            Visitor Photo
+                          </Label>
                           <div className="border rounded-lg overflow-hidden bg-gray-50">
                             <img
                               src={`data:image/jpeg;base64,${selectedVisitDetails.photo}`}
@@ -670,7 +884,9 @@ export default function ReportsPage() {
                       )}
                       {selectedVisitDetails.id_photo_front && (
                         <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">ID Front</Label>
+                          <Label className="text-gray-700 font-medium text-base">
+                            ID Front
+                          </Label>
                           <div className="border rounded-lg overflow-hidden bg-gray-50">
                             <img
                               src={`data:image/jpeg;base64,${selectedVisitDetails.id_photo_front}`}
@@ -682,7 +898,9 @@ export default function ReportsPage() {
                       )}
                       {selectedVisitDetails.id_photo_back && (
                         <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">ID Back</Label>
+                          <Label className="text-gray-700 font-medium text-base">
+                            ID Back
+                          </Label>
                           <div className="border rounded-lg overflow-hidden bg-gray-50">
                             <img
                               src={`data:image/jpeg;base64,${selectedVisitDetails.id_photo_back}`}
@@ -694,7 +912,9 @@ export default function ReportsPage() {
                       )}
                       {selectedVisitDetails.signature && (
                         <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">Signature</Label>
+                          <Label className="text-gray-700 font-medium text-base">
+                            Signature
+                          </Label>
                           <div className="border rounded-lg overflow-hidden bg-gray-50">
                             <img
                               src={`data:image/jpeg;base64,${selectedVisitDetails.signature}`}
@@ -711,7 +931,10 @@ export default function ReportsPage() {
 
               {/* Action Buttons */}
               <div className="flex justify-end space-x-3 pt-4 border-t">
-                <Button variant="outline" onClick={() => setIsDetailsDialogOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsDetailsDialogOpen(false)}
+                >
                   Close
                 </Button>
               </div>
@@ -720,5 +943,5 @@ export default function ReportsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

@@ -2,8 +2,7 @@
 
 import { CardDescription } from "@/components/ui/card";
 
-import type React from "react";
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,6 +60,12 @@ import { AuthGuard } from "@/components/auth-guard";
 import { useRouter } from "next/navigation";
 import { isAuthenticated } from "@/lib/client-auth";
 
+interface OfficeVisit {
+  office: string;
+  reason: string;
+  visitee_name: string;
+}
+
 interface Branch {
   id: number;
   name: string;
@@ -110,7 +115,37 @@ interface ExistingVisitor {
   } | null;
 }
 
-export default function VisitorRegistration() {
+interface GroupedVisitor {
+  visitor_id: number;
+  name: string;
+  phone_number: string;
+  photo?: string;
+  id_photo_front?: string;
+  id_photo_back?: string;
+  branch_name: string;
+  registered_by_name: string;
+  total_visits?: number;
+  has_active_visits: boolean;
+  visits: VisitDetails[];
+}
+
+interface VisitDetails {
+  id: number;
+  digital_card_no: string;
+  reason: string;
+  office: string;
+  sign_in_time: string;
+  sign_out_time?: string;
+  has_laptop: boolean;
+  laptop_brand?: string;
+  laptop_model?: string;
+  visitee_name?: string;
+  company?: string;
+  person_in_charge?: string;
+  other_items?: string[];
+}
+
+export default function RegisterPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("register");
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -124,12 +159,9 @@ export default function VisitorRegistration() {
     useState<Visitor | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
 
-  // Registration form state
   const [formData, setFormData] = useState({
     name: "",
     phone_number: "",
-    reason: "",
-    office: "",
     has_laptop: false,
     laptop_brand: "",
     laptop_model: "",
@@ -137,9 +169,12 @@ export default function VisitorRegistration() {
     is_vendor: false,
     company: "",
     person_in_charge: "",
-    other_items: [] as string[], // New field for other items
-    visitee_name: "", // New field for visitee name
+    other_items: [] as string[],
   });
+
+  const [officeVisits, setOfficeVisits] = useState<OfficeVisit[]>([
+    { office: "", reason: "", visitee_name: "" },
+  ]);
 
   const [userBranch, setUserBranch] = useState<Branch | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
@@ -152,7 +187,7 @@ export default function VisitorRegistration() {
   const [branchLoading, setBranchLoading] = useState(true);
 
   // Visitors list state
-  const [visitors, setVisitors] = useState<Visitor[]>([]);
+  const [visitors, setVisitors] = useState<GroupedVisitor[]>([]);
   const [visitorsLoading, setVisitorsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -244,8 +279,6 @@ export default function VisitorRegistration() {
     setFormData({
       name: "",
       phone_number: "",
-      reason: "",
-      office: "",
       has_laptop: false,
       laptop_brand: "",
       laptop_model: "",
@@ -254,8 +287,8 @@ export default function VisitorRegistration() {
       company: "",
       person_in_charge: "",
       other_items: [], // Reset other items
-      visitee_name: "", // Reset visitee name
     });
+    setOfficeVisits([{ office: "", reason: "", visitee_name: "" }]);
   };
 
   const handleVisitorSelect = (visitor: ExistingVisitor) => {
@@ -267,8 +300,6 @@ export default function VisitorRegistration() {
     setFormData({
       name: visitor.name,
       phone_number: visitor.phone_number,
-      reason: visitor.last_visit_details?.reason || "",
-      office: visitor.last_visit_details?.office || "",
       has_laptop: visitor.last_visit_details?.has_laptop || false,
       laptop_brand: visitor.last_visit_details?.laptop_brand || "",
       laptop_model: visitor.last_visit_details?.laptop_model || "",
@@ -276,9 +307,16 @@ export default function VisitorRegistration() {
       is_vendor: visitor.last_visit_details?.is_vendor || false,
       company: visitor.last_visit_details?.company || "",
       person_in_charge: visitor.last_visit_details?.person_in_charge || "",
-      other_items: [], // Initialize as empty for returning visitors
-      visitee_name: "", // Initialize as empty
+      other_items: [],
     });
+
+    setOfficeVisits([
+      {
+        office: visitor.last_visit_details?.office || "",
+        reason: visitor.last_visit_details?.reason || "",
+        visitee_name: "",
+      },
+    ]);
   };
 
   const handleBackToVisitorType = () => {
@@ -309,13 +347,14 @@ export default function VisitorRegistration() {
       return;
     }
 
-    if (!formData.office) {
-      toast.error("Please select an office");
-      return;
-    }
-
-    if (!formData.reason) {
-      toast.error("Please select a reason for visit");
+    // Validate that at least one office visit is complete
+    const validVisits = officeVisits.filter(
+      (visit) => visit.office && visit.reason
+    );
+    if (validVisits.length === 0) {
+      toast.error(
+        "Please add at least one office visit with office and reason"
+      );
       return;
     }
 
@@ -324,6 +363,7 @@ export default function VisitorRegistration() {
     try {
       const submitData = {
         ...formData,
+        office_visits: validVisits,
         photo,
         id_photo_front: idPhotoFront,
         id_photo_back: idPhotoBack,
@@ -359,9 +399,9 @@ export default function VisitorRegistration() {
     }
   };
 
-  const handleSignOut = async (visitId: number) => {
+  const handleSignOut = async (visitorId: number) => {
     try {
-      const response = await fetch(`/api/visitors/${visitId}/signout`, {
+      const response = await fetch(`/api/visitors/${visitorId}/signout-all`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -369,7 +409,10 @@ export default function VisitorRegistration() {
       });
 
       if (response.ok) {
-        toast.success("Visitor signed out successfully");
+        const data = await response.json();
+        toast.success(
+          `Visitor signed out successfully (${data.visits_signed_out} visits)`
+        );
         fetchTodaysVisitors();
       } else {
         const data = await response.json();
@@ -377,6 +420,60 @@ export default function VisitorRegistration() {
       }
     } catch (error) {
       toast.error("An error occurred");
+    }
+  };
+
+  const handleViewVisitDetails = (visit: VisitDetails) => {
+    // Find the visitor for this visit
+    const visitor = visitors.find((v) =>
+      v.visits.some((vst) => vst.id === visit.id)
+    );
+    if (visitor) {
+      setSelectedVisitorDetails({
+        id: visit.id,
+        digital_card_no: visit.digital_card_no,
+        name: visitor.name,
+        phone_number: visitor.phone_number,
+        reason: visit.reason,
+        office: visit.office,
+        sign_in_time: visit.sign_in_time,
+        sign_out_time: visit.sign_out_time,
+        has_laptop: visit.has_laptop,
+        laptop_brand: visit.laptop_brand,
+        laptop_model: visit.laptop_model,
+        photo: visitor.photo,
+        branch_name: visitor.branch_name,
+        registered_by_name: visitor.registered_by_name,
+        total_visits: visitor.total_visits,
+        other_items: visit.other_items,
+        visitee_name: visit.visitee_name,
+        id_photo_front: visitor.id_photo_front,
+        id_photo_back: visitor.id_photo_back,
+        company: visit.company,
+        person_in_charge: visit.person_in_charge,
+      });
+      setIsDetailsDialogOpen(true);
+    }
+  };
+
+  const handleSignOutSingle = async (visitId: number) => {
+    try {
+      const response = await fetch(`/api/visitors/visit/${visitId}/signout`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
+      });
+
+      if (response.ok) {
+        toast.success("Visit signed out successfully");
+        fetchTodaysVisitors();
+      } else {
+        toast.error("Failed to sign out visit");
+      }
+    } catch (error) {
+      console.error("Error signing out visit:", error);
+      toast.error("Failed to sign out visit");
     }
   };
 
@@ -398,17 +495,10 @@ export default function VisitorRegistration() {
     }
   };
 
-  const handleViewDetails = (visitor: Visitor) => {
-    setSelectedVisitorDetails(visitor);
-    setIsDetailsDialogOpen(true);
-  };
-
   const resetForm = () => {
     setFormData({
       name: "",
-      reason: "",
       phone_number: "",
-      office: "",
       has_laptop: false,
       laptop_brand: "",
       laptop_model: "",
@@ -416,9 +506,9 @@ export default function VisitorRegistration() {
       is_vendor: false,
       company: "",
       person_in_charge: "",
-      other_items: [], // Reset other items
-      visitee_name: "", // Reset visitee name
+      other_items: [],
     });
+    setOfficeVisits([{ office: "", reason: "", visitee_name: "" }]);
     setPhoto(null);
     setIdPhotoFront(null);
     setIdPhotoBack(null);
@@ -433,7 +523,9 @@ export default function VisitorRegistration() {
   const filteredVisitors = visitors.filter(
     (visitor) =>
       visitor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      visitor.digital_card_no.toLowerCase().includes(searchTerm.toLowerCase())
+      visitor.visits.some((visit) =>
+        visit.digital_card_no.toLowerCase().includes(searchTerm.toLowerCase())
+      )
   );
 
   const formatTime = (dateString: string) => {
@@ -461,6 +553,30 @@ export default function VisitorRegistration() {
       ...prev,
       other_items: prev.other_items.filter((_, i) => i !== index),
     }));
+  };
+
+  const addOfficeVisit = () => {
+    setOfficeVisits([
+      ...officeVisits,
+      { office: "", reason: "", visitee_name: "" },
+    ]);
+  };
+
+  const removeOfficeVisit = (index: number) => {
+    if (officeVisits.length > 1) {
+      setOfficeVisits(officeVisits.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateOfficeVisit = (
+    index: number,
+    field: keyof OfficeVisit,
+    value: string
+  ) => {
+    const updated = officeVisits.map((visit, i) =>
+      i === index ? { ...visit, [field]: value } : visit
+    );
+    setOfficeVisits(updated);
   };
 
   if (isSubmitted) {
@@ -756,106 +872,6 @@ export default function VisitorRegistration() {
                                 </div>
                               </div>
                             </div>
-
-                            <div>
-                              <Label
-                                htmlFor="office"
-                                className="text-gray-700 font-medium text-base"
-                              >
-                                Office to visit *
-                              </Label>
-                              <Select
-                                value={formData.office}
-                                onValueChange={(value) =>
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    office: value,
-                                  }))
-                                }
-                                required
-                              >
-                                <SelectTrigger className="mt-1 h-12 text-base">
-                                  <SelectValue placeholder="Select office" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {userBranch &&
-                                    Array.isArray(userBranch.offices) &&
-                                    userBranch.offices.map((office) => (
-                                      <SelectItem key={office} value={office}>
-                                        {office}
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-
-                            <div>
-                              <Label
-                                htmlFor="reason"
-                                className="text-gray-700 font-medium text-base"
-                              >
-                                Reason for Visit *
-                              </Label>
-                              <Select
-                                value={formData.reason}
-                                onValueChange={(value) =>
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    reason: value,
-                                  }))
-                                }
-                                required
-                              >
-                                <SelectTrigger className="mt-1 h-12 text-base">
-                                  <SelectValue placeholder="Select reason" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {userBranch &&
-                                    Array.isArray(userBranch.reasons) &&
-                                    userBranch.reasons.map((reason) => (
-                                      <SelectItem key={reason} value={reason}>
-                                        {reason}
-                                      </SelectItem>
-                                    ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        {/* Visitee Information */}
-                        <Card className="modern-shadow border-0">
-                          <CardHeader>
-                            <CardTitle className="flex items-center text-xl">
-                              <User className="h-5 w-5 mr-2 text-blue-600" />
-                              Visit Information
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div>
-                              <Label
-                                htmlFor="visitee_name"
-                                className="text-gray-700 font-medium text-base"
-                              >
-                                Person to Visit (Optional)
-                              </Label>
-                              <Input
-                                id="visitee_name"
-                                value={formData.visitee_name}
-                                onChange={(e) =>
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    visitee_name: e.target.value,
-                                  }))
-                                }
-                                className="mt-1 h-12 text-base"
-                                placeholder="Enter name of person being visited"
-                              />
-                              <p className="text-sm text-gray-500 mt-1">
-                                Optional - Leave empty if not visiting a
-                                specific person
-                              </p>
-                            </div>
                           </CardContent>
                         </Card>
 
@@ -1072,8 +1088,134 @@ export default function VisitorRegistration() {
                         </Card>
                       </div>
 
-                      {/* Right Column - Photo Capture */}
+                      {/* Right Column - Office Visits and Photo Capture */}
                       <div className="space-y-6">
+                        <Card className="modern-shadow border-0">
+                          <CardHeader>
+                            <CardTitle className="flex items-center justify-between text-xl">
+                              <div className="flex items-center">
+                                <Building2 className="h-5 w-5 mr-2 text-blue-600" />
+                                Office Visits
+                              </div>
+                              <Button
+                                type="button"
+                                onClick={addOfficeVisit}
+                                variant="outline"
+                                size="sm"
+                                className="text-blue-600 border-blue-600 hover:bg-blue-50 bg-transparent"
+                              >
+                                <Plus className="h-4 w-4 mr-1" />
+                                Add Office
+                              </Button>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-6">
+                            {officeVisits.map((visit, index) => (
+                              <div
+                                key={index}
+                                className="p-4 border rounded-lg bg-gray-50 space-y-4"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <h4 className="font-medium text-gray-900">
+                                    Office Visit {index + 1}
+                                  </h4>
+                                  {officeVisits.length > 1 && (
+                                    <Button
+                                      type="button"
+                                      onClick={() => removeOfficeVisit(index)}
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-red-600 hover:bg-red-50"
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <Label className="text-gray-700 font-medium text-base">
+                                    Office to visit *
+                                  </Label>
+                                  <Select
+                                    value={visit.office}
+                                    onValueChange={(value) =>
+                                      updateOfficeVisit(index, "office", value)
+                                    }
+                                    required
+                                  >
+                                    <SelectTrigger className="mt-1 h-12 text-base">
+                                      <SelectValue placeholder="Select office" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {userBranch &&
+                                        Array.isArray(userBranch.offices) &&
+                                        userBranch.offices.map((office) => (
+                                          <SelectItem
+                                            key={office}
+                                            value={office}
+                                          >
+                                            {office}
+                                          </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div>
+                                  <Label className="text-gray-700 font-medium text-base">
+                                    Reason for Visit *
+                                  </Label>
+                                  <Select
+                                    value={visit.reason}
+                                    onValueChange={(value) =>
+                                      updateOfficeVisit(index, "reason", value)
+                                    }
+                                    required
+                                  >
+                                    <SelectTrigger className="mt-1 h-12 text-base">
+                                      <SelectValue placeholder="Select reason" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {userBranch &&
+                                        Array.isArray(userBranch.reasons) &&
+                                        userBranch.reasons.map((reason) => (
+                                          <SelectItem
+                                            key={reason}
+                                            value={reason}
+                                          >
+                                            {reason}
+                                          </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                <div>
+                                  <Label className="text-gray-700 font-medium text-base">
+                                    Person to Visit (Optional)
+                                  </Label>
+                                  <Input
+                                    value={visit.visitee_name}
+                                    onChange={(e) =>
+                                      updateOfficeVisit(
+                                        index,
+                                        "visitee_name",
+                                        e.target.value
+                                      )
+                                    }
+                                    className="mt-1 h-12 text-base"
+                                    placeholder="Enter name of person being visited"
+                                  />
+                                  <p className="text-sm text-gray-500 mt-1">
+                                    Optional - Leave empty if not visiting a
+                                    specific person
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </CardContent>
+                        </Card>
+
                         <Card className="modern-shadow border-0">
                           <CardHeader>
                             <CardTitle className="flex items-center text-xl">
@@ -1391,148 +1533,205 @@ export default function VisitorRegistration() {
                             </TableHead>
                           </TableRow>
                         </TableHeader>
+                        {/* Updated table structure to show individual visit rows with grouped visitor names */}
                         <TableBody>
                           {filteredVisitors.map((visitor) => (
-                            <TableRow
-                              key={visitor.id}
-                              className="hover:bg-gray-50"
-                            >
-                              <TableCell>
-                                <div className="flex items-center space-x-3">
-                                  <VisitorPhoto
-                                    photo={visitor.photo}
-                                    name={visitor.name}
-                                    className="h-12 w-12"
-                                  />
-                                  <div>
-                                    <p className="font-medium text-gray-900 text-base">
-                                      {visitor.name}
-                                    </p>
-                                    <div className="flex items-center space-x-2">
-                                      <p className="text-gray-500 text-sm">
-                                        {visitor.branch_name}
+                            <React.Fragment key={visitor.visitor_id}>
+                              {visitor.visits.map((visit, visitIndex) => (
+                                <TableRow
+                                  key={`${visitor.visitor_id}-${visit.id}`}
+                                  className={`visit-row hover:bg-muted/50 ${
+                                    visitIndex === 0 ? "visitor-group-row" : ""
+                                  }`}
+                                >
+                                  {visitIndex === 0 && (
+                                    <TableCell
+                                      rowSpan={visitor.visits.length}
+                                      className="border-r border-border"
+                                    >
+                                      <div className="flex items-center space-x-3">
+                                        <VisitorPhoto
+                                          photo={visitor.photo}
+                                          name={visitor.name}
+                                          className="h-12 w-12"
+                                        />
+                                        <div>
+                                          <p className="font-semibold text-foreground text-base">
+                                            {visitor.name}
+                                          </p>
+                                          <div className="flex items-center space-x-2 mt-1">
+                                            <p className="text-muted-foreground text-sm">
+                                              {visitor.branch_name}
+                                            </p>
+                                            {visitor.total_visits &&
+                                              visitor.total_visits > 1 && (
+                                                <Badge
+                                                  variant="secondary"
+                                                  className="text-xs bg-secondary/20 text-secondary-foreground"
+                                                >
+                                                  {visitor.total_visits} total
+                                                  visits
+                                                </Badge>
+                                              )}
+                                            {visitor.visits.length > 1 && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-xs border-accent text-accent"
+                                              >
+                                                {visitor.visits.length} offices
+                                                today
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </TableCell>
+                                  )}
+
+                                  <TableCell>
+                                    <Badge
+                                      variant="outline"
+                                      className="font-mono text-sm bg-card"
+                                    >
+                                      {visit.digital_card_no}
+                                    </Badge>
+                                  </TableCell>
+
+                                  <TableCell>
+                                    <div className="space-y-2">
+                                      <p className="font-medium text-foreground">
+                                        {visit.office}
                                       </p>
-                                      {visitor.total_visits &&
-                                        visitor.total_visits > 1 && (
-                                          <Badge
-                                            variant="secondary"
-                                            className="text-xs"
+                                      <Badge
+                                        variant="secondary"
+                                        className="bg-accent/20 text-accent-foreground text-xs"
+                                      >
+                                        {visit.reason}
+                                      </Badge>
+                                      {visit.visitee_name && (
+                                        <p className="text-xs text-muted-foreground flex items-center">
+                                          <span className="mr-1">→</span>
+                                          {visit.visitee_name}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </TableCell>
+
+                                  <TableCell>
+                                    <div className="space-y-1">
+                                      <div className="flex items-center text-sm text-muted-foreground">
+                                        <Clock className="h-3 w-3 mr-1" />
+                                        In: {formatTime(visit.sign_in_time)}
+                                      </div>
+                                      {visit.sign_out_time && (
+                                        <div className="flex items-center text-sm text-muted-foreground">
+                                          <Clock className="h-3 w-3 mr-1" />
+                                          Out: {formatTime(visit.sign_out_time)}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </TableCell>
+
+                                  <TableCell>
+                                    <Badge
+                                      variant={
+                                        !visit.sign_out_time
+                                          ? "secondary"
+                                          : "default"
+                                      }
+                                      className={
+                                        !visit.sign_out_time
+                                          ? "bg-green-100 text-green-700 text-sm"
+                                          : "bg-gray-100 text-gray-700 text-sm"
+                                      }
+                                    >
+                                      {!visit.sign_out_time
+                                        ? "Active"
+                                        : "Signed Out"}
+                                    </Badge>
+                                  </TableCell>
+
+                                  <TableCell>
+                                    {visit.has_laptop ? (
+                                      <div className="space-y-1">
+                                        <div className="flex items-center text-sm">
+                                          <Laptop className="h-3 w-3 mr-1 text-primary" />
+                                          <span className="font-medium">
+                                            Yes
+                                          </span>
+                                        </div>
+                                        {visit.laptop_brand && (
+                                          <p className="text-xs text-muted-foreground">
+                                            {visit.laptop_brand}{" "}
+                                            {visit.laptop_model}
+                                          </p>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-muted-foreground text-sm">
+                                        No
+                                      </span>
+                                    )}
+                                  </TableCell>
+
+                                  <TableCell className="text-right">
+                                    <div className="flex items-center justify-end space-x-2">
+                                      <Button
+                                        onClick={() =>
+                                          handleViewVisitDetails(visit)
+                                        }
+                                        variant="outline"
+                                        size="sm"
+                                        className="text-primary hover:text-primary hover:bg-primary/10 text-sm border-primary/20"
+                                      >
+                                        <Eye className="h-4 w-4 mr-1" />
+                                        Details
+                                      </Button>
+
+                                      {!visit.sign_out_time ? (
+                                        <Button
+                                          onClick={() =>
+                                            handleSignOutSingle(visit.id)
+                                          }
+                                          variant="outline"
+                                          size="sm"
+                                          className="text-destructive hover:text-destructive hover:bg-destructive/10 text-sm border-destructive/20"
+                                        >
+                                          <LogOut className="h-4 w-4 mr-1" />
+                                          Sign Out
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="text-muted-foreground cursor-not-allowed text-sm"
+                                          disabled
+                                        >
+                                          <LogOut className="h-4 w-4 mr-1" />
+                                          Signed Out
+                                        </Button>
+                                      )}
+
+                                      {visitIndex === 0 &&
+                                        visitor.has_active_visits &&
+                                        visitor.visits.length > 1 && (
+                                          <Button
+                                            onClick={() =>
+                                              handleSignOut(visitor.visitor_id)
+                                            }
+                                            variant="default"
+                                            size="sm"
+                                            className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm ml-2"
                                           >
-                                            {visitor.total_visits} visits
-                                          </Badge>
+                                            <LogOut className="h-4 w-4 mr-1" />
+                                            Sign Out All
+                                          </Button>
                                         )}
                                     </div>
-                                  </div>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant="outline"
-                                  className="font-mono text-sm"
-                                >
-                                  {visitor.digital_card_no}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <p className="font-medium text-base">
-                                    {visitor.office}
-                                  </p>
-                                  <Badge
-                                    variant="secondary"
-                                    className="bg-purple-100 text-purple-700 text-sm"
-                                  >
-                                    {visitor.reason}
-                                  </Badge>
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <div className="space-y-1">
-                                  <div className="flex items-center text-sm text-gray-600">
-                                    <Clock className="h-3 w-3 mr-1" />
-                                    In: {formatTime(visitor.sign_in_time)}
-                                  </div>
-                                  {visitor.sign_out_time && (
-                                    <div className="flex items-center text-sm text-gray-600">
-                                      <Clock className="h-3 w-3 mr-1" />
-                                      Out: {formatTime(visitor.sign_out_time)}
-                                    </div>
-                                  )}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                <Badge
-                                  variant={
-                                    visitor.sign_out_time
-                                      ? "default"
-                                      : "secondary"
-                                  }
-                                  className={
-                                    visitor.sign_out_time
-                                      ? "bg-gray-100 text-gray-700 text-sm"
-                                      : "bg-green-100 text-green-700 text-sm"
-                                  }
-                                >
-                                  {visitor.sign_out_time
-                                    ? "Signed Out"
-                                    : "Active"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                {visitor.has_laptop ? (
-                                  <div className="space-y-1">
-                                    <div className="flex items-center text-sm">
-                                      <Laptop className="h-3 w-3 mr-1 text-blue-600" />
-                                      <span className="font-medium">Yes</span>
-                                    </div>
-                                    {visitor.laptop_brand && (
-                                      <p className="text-xs text-gray-500">
-                                        {visitor.laptop_brand}{" "}
-                                        {visitor.laptop_model}
-                                      </p>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-gray-500 text-sm">
-                                    No
-                                  </span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="flex items-center justify-end space-x-2">
-                                  <Button
-                                    onClick={() => handleViewDetails(visitor)}
-                                    variant="outline"
-                                    size="sm"
-                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-sm"
-                                  >
-                                    <Eye className="h-4 w-4 mr-1" />
-                                    Details
-                                  </Button>
-                                  {!visitor.sign_out_time ? (
-                                    <Button
-                                      onClick={() => handleSignOut(visitor.id)}
-                                      variant="outline"
-                                      size="sm"
-                                      className="text-red-600 hover:text-red-700 hover:bg-red-50 text-sm"
-                                    >
-                                      <LogOut className="h-4 w-4 mr-1" />
-                                      Sign Out
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-gray-400 cursor-not-allowed text-sm"
-                                      disabled
-                                    >
-                                      <LogOut className="h-4 w-4 mr-1" />
-                                      Signed Out
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
-                            </TableRow>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </React.Fragment>
                           ))}
                         </TableBody>
                       </Table>

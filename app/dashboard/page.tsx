@@ -462,7 +462,7 @@ export default function DashboardHome() {
             </CardContent>
           </Card>
 
-          <Card className="modern-shadow border-0">
+          {/* <Card className="modern-shadow border-0">
             <CardHeader>
               <CardTitle className="text-xl text-gray-900">
                 Recent Activity
@@ -510,7 +510,7 @@ export default function DashboardHome() {
                 )}
               </div>
             </CardContent>
-          </Card>
+          </Card> */}
         </div>
       </div>
     </AuthGuard>
