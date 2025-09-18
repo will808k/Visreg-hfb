@@ -458,7 +458,7 @@ export default function RegisterPage() {
 
   const handleSignOutSingle = async (visitId: number) => {
     try {
-      const response = await fetch(`/api/visitors/visit/${visitId}/signout`, {
+      const response = await fetch(`/api/visitors/${visitId}/signout`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,

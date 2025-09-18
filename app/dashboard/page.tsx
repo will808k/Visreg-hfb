@@ -192,10 +192,10 @@ export default function DashboardHome() {
             </p>
           </div>
           <div className="flex items-center space-x-3 mt-4 lg:mt-0">
-            <Button variant="outline" size="sm">
+            {/* <Button variant="outline" size="sm">
               <Download className="h-4 w-4 mr-2" />
               Export Report
-            </Button>
+            </Button> */}
             <Button
               className="bg-[#2532a1]"
               size="sm"

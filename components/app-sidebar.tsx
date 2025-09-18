@@ -39,6 +39,7 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import { removeAuthToken } from "@/lib/client-auth";
 import toast from "react-hot-toast";
+import Image from "next/image";
 
 // Menu data
 const data = {
@@ -135,15 +136,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild className="h-12">
+            <SidebarMenuButton size="lg" asChild className="h-14">
               <div className="flex items-center">
-                <div className="grid flex-1 text-left leading-tight ml-3">
+                {/* <div className="grid flex-1 text-left leading-tight ml-3">
                   <span className="truncate font-bold text-base">
                     VRS Admin
                   </span>
                   <span className="truncate text-sm text-muted-foreground">
                     Management Portal
                   </span>
+                </div> */}
+                <div className="flex items-center justify-center">
+                  <Image
+                    src="/logo1.png"
+                    alt="MarketPro Logo"
+                    width={200}
+                    height={200}
+                    className="object-contain"
+                  />
+                  {/* <h1 className="text-2xl font-bold text-blue-900">VRM</h1> */}
                 </div>
               </div>
             </SidebarMenuButton>
@@ -154,9 +165,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         {/* Main Navigation */}
         <SidebarGroup>
-          <SidebarGroupLabel className="text-sm font-semibold text-sidebar-foreground/70">
+          {/* <SidebarGroupLabel className="text-sm font-semibold text-sidebar-foreground/70">
             Navigation
-          </SidebarGroupLabel>
+          </SidebarGroupLabel> */}
           <SidebarGroupContent>
             <SidebarMenu>
               {data.navMain.map((item) => {
