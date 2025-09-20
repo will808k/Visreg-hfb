@@ -1,5 +1,11 @@
-import { type NextRequest, NextResponse } from "next/server"
-import pool from "@/lib/db"
+import { type NextRequest, NextResponse } from "next/server";
+import pool from "@/lib/db";
+import {
+  setUserContext,
+  clearUserContext,
+  extractUserInfo,
+} from "@/lib/audit-logger";
+import { verifyToken } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -18,22 +24,26 @@ export async function GET() {
       LEFT JOIN branch_reasons br ON b.id = br.branch_id
       GROUP BY b.id, b.name, b.location, b.created_at, b.updated_at
       ORDER BY b.name
-    `)
+    `);
 
     if (!Array.isArray(rows)) {
-      console.log("No branches found or invalid response")
-      return NextResponse.json([])
+      console.log("No branches found or invalid response");
+      return NextResponse.json([]);
     }
 
     const branches = (rows as any[]).map((branch) => {
       // Convert comma-separated strings back to arrays
-      const offices = branch.offices_string ? branch.offices_string.split(",").map((s: string) => s.trim()) : []
-      const reasons = branch.reasons_string ? branch.reasons_string.split(",").map((s: string) => s.trim()) : []
+      const offices = branch.offices_string
+        ? branch.offices_string.split(",").map((s: string) => s.trim())
+        : [];
+      const reasons = branch.reasons_string
+        ? branch.reasons_string.split(",").map((s: string) => s.trim())
+        : [];
 
       console.log(`Branch ${branch.name}:`, {
         offices,
         reasons,
-      })
+      });
 
       return {
         id: branch.id,
@@ -43,43 +53,66 @@ export async function GET() {
         updated_at: branch.updated_at,
         offices,
         reasons,
-      }
-    })
+      };
+    });
 
-    console.log("Final branches data:", branches)
-    return NextResponse.json(branches)
+    console.log("Final branches data:", branches);
+    return NextResponse.json(branches);
   } catch (error) {
-    console.error("Branches fetch error:", error)
-    return NextResponse.json([])
+    console.error("Branches fetch error:", error);
+    return NextResponse.json([]);
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, location, offices, reasons } = await request.json()
+    const token = request.headers.get("authorization")?.replace("Bearer ", "");
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
+    const { name, location, offices, reasons } = await request.json();
 
     if (!name || !location) {
-      return NextResponse.json({ error: "Name and location are required" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Name and location are required" },
+        { status: 400 }
+      );
     }
 
     // Start transaction
-    const connection = await pool.getConnection()
-    await connection.beginTransaction()
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
 
     try {
-      // Insert branch
-      const [result] = await connection.execute("INSERT INTO branches (name, location) VALUES (?, ?)", [name, location])
+      // Set user context for audit logging
+      await setUserContext(
+        decoded.userId,
+        decoded.name || "Unknown",
+        connection
+      );
 
-      const branchId = (result as any).insertId
+      // Insert branch
+      const [result] = await connection.execute(
+        "INSERT INTO branches (name, location) VALUES (?, ?)",
+        [name, location]
+      );
+
+      const branchId = (result as any).insertId;
 
       // Insert offices
       if (Array.isArray(offices) && offices.length > 0) {
         for (const office of offices) {
           if (office.trim()) {
-            await connection.execute("INSERT INTO branch_offices (branch_id, office_name) VALUES (?, ?)", [
-              branchId,
-              office.trim(),
-            ])
+            await connection.execute(
+              "INSERT INTO branch_offices (branch_id, office_name) VALUES (?, ?)",
+              [branchId, office.trim()]
+            );
           }
         }
       }
@@ -88,28 +121,31 @@ export async function POST(request: NextRequest) {
       if (Array.isArray(reasons) && reasons.length > 0) {
         for (const reason of reasons) {
           if (reason.trim()) {
-            await connection.execute("INSERT INTO branch_reasons (branch_id, reason_name) VALUES (?, ?)", [
-              branchId,
-              reason.trim(),
-            ])
+            await connection.execute(
+              "INSERT INTO branch_reasons (branch_id, reason_name) VALUES (?, ?)",
+              [branchId, reason.trim()]
+            );
           }
         }
       }
 
-      await connection.commit()
-      connection.release()
+      await connection.commit();
+      connection.release();
 
       return NextResponse.json({
         success: true,
         id: branchId,
-      })
+      });
     } catch (error) {
-      await connection.rollback()
-      connection.release()
-      throw error
+      await connection.rollback();
+      connection.release();
+      throw error;
     }
   } catch (error) {
-    console.error("Branch creation error:", error)
-    return NextResponse.json({ error: "Failed to create branch" }, { status: 500 })
+    console.error("Branch creation error:", error);
+    return NextResponse.json(
+      { error: "Failed to create branch" },
+      { status: 500 }
+    );
   }
 }

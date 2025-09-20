@@ -10,6 +10,8 @@ import {
   LogOut,
   UserPlus,
   Eye,
+  ShieldAlert,
+  ShieldQuestion,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -71,6 +73,18 @@ const data = {
       title: "Reports",
       url: "/dashboard/reports",
       icon: FileText,
+      isActive: false,
+    },
+    {
+      title: "Audit Logs",
+      url: "/dashboard/audit-logs",
+      icon: ShieldAlert,
+      isActive: false,
+    },
+    {
+      title: "Login Logs",
+      url: "/dashboard/login-logs",
+      icon: ShieldQuestion,
       isActive: false,
     },
   ],

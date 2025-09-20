@@ -1,35 +1,60 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useState } from "react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface VisitorPhotoProps {
-  photo?: string | null
-  name: string
-  className?: string
-  fallbackClassName?: string
+  photo?: string | null;
+  name: string;
+  className?: string;
+  fallbackClassName?: string;
+  onClick?: () => void;
 }
 
-export function VisitorPhoto({ photo, name, className = "h-12 w-12", fallbackClassName }: VisitorPhotoProps) {
-  const [imageError, setImageError] = useState(false)
+export function VisitorPhoto({
+  photo,
+  name,
+  className = "h-12 w-12",
+  fallbackClassName,
+  onClick,
+}: VisitorPhotoProps) {
+  const [imageError, setImageError] = useState(false);
 
   const getInitials = (name: string) => {
     return name
       .split(" ")
       .map((n) => n[0])
       .join("")
-      .toUpperCase()
-  }
+      .toUpperCase();
+  };
+
+  const formatPhotoSrc = (photoData: string | null | undefined) => {
+    if (!photoData) return "/placeholder.svg";
+    return photoData.startsWith("data:")
+      ? photoData
+      : `data:image/jpeg;base64,${photoData}`;
+  };
 
   return (
-    <Avatar className={className}>
+    <Avatar
+      className={`${className} ${
+        onClick ? "cursor-pointer hover:opacity-80 transition-opacity" : ""
+      }`}
+      onClick={onClick}
+    >
       {photo && !imageError ? (
-        <AvatarImage src={photo || "/placeholder.svg"} alt={name} onError={() => setImageError(true)} />
+        <AvatarImage
+          src={formatPhotoSrc(photo)}
+          alt={name}
+          onError={() => setImageError(true)}
+        />
       ) : (
-        <AvatarFallback className={`bg-gradient-to-r from-blue-600 to-purple-600 text-white ${fallbackClassName}`}>
+        <AvatarFallback
+          className={`bg-gradient-to-r from-blue-600 to-purple-600 text-white ${fallbackClassName}`}
+        >
           {getInitials(name)}
         </AvatarFallback>
       )}
     </Avatar>
-  )
+  );
 }

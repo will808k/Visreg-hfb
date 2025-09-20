@@ -43,7 +43,11 @@ async function getHmacKey(): Promise<CryptoKey> {
   );
 }
 
-export async function generateToken(userId: number): Promise<string> {
+export async function generateToken(
+  userId: number,
+  name?: string,
+  isAdmin?: boolean
+): Promise<string> {
   const header = {
     alg: "HS256",
     typ: "JWT",
@@ -51,6 +55,8 @@ export async function generateToken(userId: number): Promise<string> {
 
   const payload = {
     userId,
+    name,
+    isAdmin,
     exp: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60, // 30 days
   };
 
@@ -75,7 +81,7 @@ export async function generateToken(userId: number): Promise<string> {
 
 export async function verifyToken(
   token: string
-): Promise<{ userId: number } | null> {
+): Promise<{ userId: number; name?: string; isAdmin?: boolean } | null> {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
@@ -105,7 +111,11 @@ export async function verifyToken(
       return null;
     }
 
-    return { userId: payload.userId };
+    return {
+      userId: payload.userId,
+      name: payload.name,
+      isAdmin: payload.isAdmin,
+    };
   } catch {
     return null;
   }

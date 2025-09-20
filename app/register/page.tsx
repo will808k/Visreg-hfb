@@ -112,6 +112,11 @@ interface ExistingVisitor {
     is_vendor: boolean;
     company?: string;
     person_in_charge?: string;
+    photo?: string;
+    id_photo_front?: string;
+    id_photo_back?: string;
+    other_items?: string[];
+    visitee_name?: string;
   } | null;
 }
 
@@ -158,6 +163,11 @@ export default function RegisterPage() {
   const [selectedVisitorDetails, setSelectedVisitorDetails] =
     useState<Visitor | null>(null);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{
+    src: string;
+    alt: string;
+  } | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -307,16 +317,31 @@ export default function RegisterPage() {
       is_vendor: visitor.last_visit_details?.is_vendor || false,
       company: visitor.last_visit_details?.company || "",
       person_in_charge: visitor.last_visit_details?.person_in_charge || "",
-      other_items: [],
+      other_items: visitor.last_visit_details?.other_items || [],
     });
 
     setOfficeVisits([
       {
         office: visitor.last_visit_details?.office || "",
         reason: visitor.last_visit_details?.reason || "",
-        visitee_name: "",
+        visitee_name: visitor.last_visit_details?.visitee_name || "",
       },
     ]);
+
+    // Pre-populate photo fields from last visit
+    // Ensure photo data is in proper data URL format for the registration API
+    const formatPhotoData = (photoData: string | undefined) => {
+      if (!photoData) return null;
+      return photoData.startsWith("data:")
+        ? photoData
+        : `data:image/jpeg;base64,${photoData}`;
+    };
+
+    setPhoto(formatPhotoData(visitor.last_visit_details?.photo));
+    setIdPhotoFront(
+      formatPhotoData(visitor.last_visit_details?.id_photo_front)
+    );
+    setIdPhotoBack(formatPhotoData(visitor.last_visit_details?.id_photo_back));
   };
 
   const handleBackToVisitorType = () => {
@@ -331,6 +356,11 @@ export default function RegisterPage() {
       setter(e.target?.result as string);
     };
     reader.readAsDataURL(file);
+  };
+
+  const openImageViewer = (src: string, alt: string) => {
+    setSelectedImage({ src, alt });
+    setIsImageViewerOpen(true);
   };
 
   const recordSignIn = () => {
@@ -1254,9 +1284,21 @@ export default function RegisterPage() {
                                 {photo && (
                                   <div className="flex justify-center">
                                     <img
-                                      src={photo || "/placeholder.svg"}
+                                      src={
+                                        photo.startsWith("data:")
+                                          ? photo
+                                          : `data:image/jpeg;base64,${photo}`
+                                      }
                                       alt="Visitor"
-                                      className="w-32 h-32 object-cover rounded-xl border-4 border-white shadow-lg"
+                                      className="w-32 h-32 object-cover rounded-xl border-4 border-white shadow-lg cursor-pointer hover:opacity-80 transition-opacity"
+                                      onClick={() =>
+                                        openImageViewer(
+                                          photo.startsWith("data:")
+                                            ? photo
+                                            : `data:image/jpeg;base64,${photo}`,
+                                          "Visitor Photo"
+                                        )
+                                      }
                                     />
                                   </div>
                                 )}
@@ -1297,9 +1339,21 @@ export default function RegisterPage() {
                                   </Button>
                                   {idPhotoFront && (
                                     <img
-                                      src={idPhotoFront || "/placeholder.svg"}
+                                      src={
+                                        idPhotoFront.startsWith("data:")
+                                          ? idPhotoFront
+                                          : `data:image/jpeg;base64,${idPhotoFront}`
+                                      }
                                       alt="ID Front"
-                                      className="w-full h-20 object-cover rounded-lg"
+                                      className="w-full h-20 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                                      onClick={() =>
+                                        openImageViewer(
+                                          idPhotoFront.startsWith("data:")
+                                            ? idPhotoFront
+                                            : `data:image/jpeg;base64,${idPhotoFront}`,
+                                          "ID Front"
+                                        )
+                                      }
                                     />
                                   )}
                                 </div>
@@ -1335,9 +1389,21 @@ export default function RegisterPage() {
                                   </Button>
                                   {idPhotoBack && (
                                     <img
-                                      src={idPhotoBack || "/placeholder.svg"}
+                                      src={
+                                        idPhotoBack.startsWith("data:")
+                                          ? idPhotoBack
+                                          : `data:image/jpeg;base64,${idPhotoBack}`
+                                      }
                                       alt="ID Back"
-                                      className="w-full h-20 object-cover rounded-lg"
+                                      className="w-full h-20 object-cover rounded-lg cursor-pointer hover:opacity-80 transition-opacity"
+                                      onClick={() =>
+                                        openImageViewer(
+                                          idPhotoBack.startsWith("data:")
+                                            ? idPhotoBack
+                                            : `data:image/jpeg;base64,${idPhotoBack}`,
+                                          "ID Back"
+                                        )
+                                      }
                                     />
                                   )}
                                 </div>
@@ -1770,6 +1836,15 @@ export default function RegisterPage() {
                           photo={selectedVisitorDetails.photo}
                           name={selectedVisitorDetails.name}
                           className="h-16 w-16"
+                          onClick={() => {
+                            if (selectedVisitorDetails.photo) {
+                              const formattedPhoto =
+                                selectedVisitorDetails.photo.startsWith("data:")
+                                  ? selectedVisitorDetails.photo
+                                  : `data:image/jpeg;base64,${selectedVisitorDetails.photo}`;
+                              openImageViewer(formattedPhoto, "Visitor Photo");
+                            }
+                          }}
                         />
                         <div>
                           <p className="font-semibold text-lg">
@@ -2016,9 +2091,27 @@ export default function RegisterPage() {
                               </Label>
                               <div className="border rounded-lg overflow-hidden">
                                 <img
-                                  src={`data:image/jpeg;base64,${selectedVisitorDetails.id_photo_front}`}
+                                  src={
+                                    selectedVisitorDetails.id_photo_front.startsWith(
+                                      "data:"
+                                    )
+                                      ? selectedVisitorDetails.id_photo_front
+                                      : `data:image/jpeg;base64,${selectedVisitorDetails.id_photo_front}`
+                                  }
                                   alt="ID Front"
-                                  className="w-full h-48 object-cover"
+                                  className="w-full h-48 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => {
+                                    if (selectedVisitorDetails.id_photo_front) {
+                                      openImageViewer(
+                                        selectedVisitorDetails.id_photo_front.startsWith(
+                                          "data:"
+                                        )
+                                          ? selectedVisitorDetails.id_photo_front
+                                          : `data:image/jpeg;base64,${selectedVisitorDetails.id_photo_front}`,
+                                        "ID Front"
+                                      );
+                                    }
+                                  }}
                                 />
                               </div>
                             </div>
@@ -2030,9 +2123,27 @@ export default function RegisterPage() {
                               </Label>
                               <div className="border rounded-lg overflow-hidden">
                                 <img
-                                  src={`data:image/jpeg;base64,${selectedVisitorDetails.id_photo_back}`}
+                                  src={
+                                    selectedVisitorDetails.id_photo_back.startsWith(
+                                      "data:"
+                                    )
+                                      ? selectedVisitorDetails.id_photo_back
+                                      : `data:image/jpeg;base64,${selectedVisitorDetails.id_photo_back}`
+                                  }
                                   alt="ID Back"
-                                  className="w-full h-48 object-cover"
+                                  className="w-full h-48 object-cover cursor-pointer hover:opacity-80 transition-opacity"
+                                  onClick={() => {
+                                    if (selectedVisitorDetails.id_photo_back) {
+                                      openImageViewer(
+                                        selectedVisitorDetails.id_photo_back.startsWith(
+                                          "data:"
+                                        )
+                                          ? selectedVisitorDetails.id_photo_back
+                                          : `data:image/jpeg;base64,${selectedVisitorDetails.id_photo_back}`,
+                                        "ID Back"
+                                      );
+                                    }
+                                  }}
                                 />
                               </div>
                             </div>
@@ -2097,6 +2208,26 @@ export default function RegisterPage() {
                       </Button>
                     )}
                   </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Image Viewer Dialog */}
+          <Dialog open={isImageViewerOpen} onOpenChange={setIsImageViewerOpen}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-bold text-gray-900">
+                  {selectedImage?.alt}
+                </DialogTitle>
+              </DialogHeader>
+              {selectedImage && (
+                <div className="flex justify-center items-center p-4">
+                  <img
+                    src={selectedImage.src}
+                    alt={selectedImage.alt}
+                    className="max-w-full max-h-[70vh] object-contain rounded-lg shadow-lg"
+                  />
                 </div>
               )}
             </DialogContent>

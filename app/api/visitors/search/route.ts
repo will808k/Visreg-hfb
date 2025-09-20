@@ -1,28 +1,28 @@
-import { type NextRequest, NextResponse } from "next/server"
-import pool from "@/lib/db"
-import { verifyToken } from "@/lib/auth"
+import { type NextRequest, NextResponse } from "next/server";
+import pool from "@/lib/db";
+import { verifyToken } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get("authorization")?.replace("Bearer ", "")
+    const token = request.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const decoded = verifyToken(token)
+    const decoded = verifyToken(token);
     if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url)
-    const phoneQuery = searchParams.get("phone")
+    const { searchParams } = new URL(request.url);
+    const phoneQuery = searchParams.get("phone");
 
     if (!phoneQuery || phoneQuery.length < 3) {
-      return NextResponse.json([])
+      return NextResponse.json([]);
     }
 
     // Clean the phone number for better matching
-    const cleanedPhone = phoneQuery.replace(/\D/g, "")
+    const cleanedPhone = phoneQuery.replace(/\D/g, "");
 
     // Search for visitors by phone number with flexible matching
     const [visitors] = await pool.execute(
@@ -100,7 +100,28 @@ export async function GET(request: NextRequest) {
           WHERE vis2.visitor_id = v.id 
           ORDER BY vis2.sign_in_time DESC 
           LIMIT 1
-        ) as last_visitee_name
+        ) as last_visitee_name,
+        (
+          SELECT CASE WHEN vis2.photo IS NOT NULL THEN TO_BASE64(vis2.photo) ELSE NULL END
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_photo,
+        (
+          SELECT CASE WHEN vis2.id_photo_front IS NOT NULL THEN TO_BASE64(vis2.id_photo_front) ELSE NULL END
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_id_photo_front,
+        (
+          SELECT CASE WHEN vis2.id_photo_back IS NOT NULL THEN TO_BASE64(vis2.id_photo_back) ELSE NULL END
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_id_photo_back
       FROM visitors v
       WHERE 
         REPLACE(REPLACE(REPLACE(REPLACE(v.phone_number, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ? 
@@ -115,20 +136,27 @@ export async function GET(request: NextRequest) {
         END,
         v.created_at DESC
       LIMIT 10`,
-      [`%${cleanedPhone}%`, `%${phoneQuery}%`, `%${phoneQuery}%`, cleanedPhone, `${cleanedPhone}%`, `%${phoneQuery}%`],
-    )
+      [
+        `%${cleanedPhone}%`,
+        `%${phoneQuery}%`,
+        `%${phoneQuery}%`,
+        cleanedPhone,
+        `${cleanedPhone}%`,
+        `%${phoneQuery}%`,
+      ]
+    );
 
     const formattedVisitors = (visitors as any[]).map((visitor) => {
-      let lastVisitDetails = null
+      let lastVisitDetails = null;
 
       if (visitor.last_reason || visitor.last_office) {
         // Parse other_items if it exists
-        let otherItems = []
+        let otherItems = [];
         if (visitor.last_other_items) {
           try {
-            otherItems = JSON.parse(visitor.last_other_items)
+            otherItems = JSON.parse(visitor.last_other_items);
           } catch (e) {
-            otherItems = []
+            otherItems = [];
           }
         }
 
@@ -138,12 +166,17 @@ export async function GET(request: NextRequest) {
           has_laptop: Boolean(visitor.last_has_laptop),
           laptop_brand: visitor.last_laptop_brand || undefined,
           laptop_model: visitor.last_laptop_model || undefined,
-          is_vendor: Boolean(visitor.last_company && visitor.last_company.trim() !== ""),
+          is_vendor: Boolean(
+            visitor.last_company && visitor.last_company.trim() !== ""
+          ),
           company: visitor.last_company || undefined,
           person_in_charge: visitor.last_person_in_charge || undefined,
           other_items: otherItems,
           visitee_name: visitor.last_visitee_name || undefined,
-        }
+          photo: visitor.last_photo || undefined,
+          id_photo_front: visitor.last_id_photo_front || undefined,
+          id_photo_back: visitor.last_id_photo_back || undefined,
+        };
       }
 
       return {
@@ -153,12 +186,12 @@ export async function GET(request: NextRequest) {
         visits: visitor.visits,
         last_visit: visitor.last_visit,
         last_visit_details: lastVisitDetails,
-      }
-    })
+      };
+    });
 
-    return NextResponse.json(formattedVisitors)
+    return NextResponse.json(formattedVisitors);
   } catch (error) {
-    console.error("Search error:", error)
-    return NextResponse.json({ error: "Search failed" }, { status: 500 })
+    console.error("Search error:", error);
+    return NextResponse.json({ error: "Search failed" }, { status: 500 });
   }
 }

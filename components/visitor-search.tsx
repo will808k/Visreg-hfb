@@ -1,114 +1,130 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Search, Phone, User, UserPlus, Clock } from "lucide-react"
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Search, Phone, User, UserPlus, Clock } from "lucide-react";
 
 interface ExistingVisitor {
-  id: number
-  name: string
-  phone_number: string
-  visits: number
-  last_visit: string
+  id: number;
+  name: string;
+  phone_number: string;
+  visits: number;
+  last_visit: string;
   last_visit_details: {
-    reason: string
-    office: string
-    has_laptop: boolean
-    laptop_brand?: string
-    laptop_model?: string
-    is_vendor: boolean
-    company?: string
-    person_in_charge?: string
-  } | null
+    reason: string;
+    office: string;
+    has_laptop: boolean;
+    laptop_brand?: string;
+    laptop_model?: string;
+    is_vendor: boolean;
+    company?: string;
+    person_in_charge?: string;
+    photo?: string;
+    id_photo_front?: string;
+    id_photo_back?: string;
+    other_items?: string[];
+    visitee_name?: string;
+  } | null;
 }
 
 interface VisitorSearchProps {
-  onVisitorSelect: (visitor: ExistingVisitor) => void
-  onNewVisitor: () => void
+  onVisitorSelect: (visitor: ExistingVisitor) => void;
+  onNewVisitor: () => void;
 }
 
-export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchProps) {
-  const [phoneNumber, setPhoneNumber] = useState("")
-  const [searchResults, setSearchResults] = useState<ExistingVisitor[]>([])
-  const [isSearching, setIsSearching] = useState(false)
-  const [hasSearched, setHasSearched] = useState(false)
+export function VisitorSearch({
+  onVisitorSelect,
+  onNewVisitor,
+}: VisitorSearchProps) {
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [searchResults, setSearchResults] = useState<ExistingVisitor[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
   const handleSearch = async () => {
     if (phoneNumber.length < 3) {
-      return
+      return;
     }
 
-    setIsSearching(true)
-    setHasSearched(true)
+    setIsSearching(true);
+    setHasSearched(true);
 
     try {
-      const response = await fetch(`/api/visitors/search?phone=${encodeURIComponent(phoneNumber)}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      })
+      const response = await fetch(
+        `/api/visitors/search?phone=${encodeURIComponent(phoneNumber)}`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
 
       if (response.ok) {
-        const results = await response.json()
-        setSearchResults(results)
+        const results = await response.json();
+        setSearchResults(results);
       } else {
-        console.error("Search failed")
-        setSearchResults([])
+        console.error("Search failed");
+        setSearchResults([]);
       }
     } catch (error) {
-      console.error("Search error:", error)
-      setSearchResults([])
+      console.error("Search error:", error);
+      setSearchResults([]);
     } finally {
-      setIsSearching(false)
+      setIsSearching(false);
     }
-  }
+  };
 
   const formatPhoneNumber = (phone: string) => {
-    if (!phone) return ""
+    if (!phone) return "";
     // Remove all non-digits
-    const cleaned = phone.replace(/\D/g, "")
+    const cleaned = phone.replace(/\D/g, "");
     // Format as (XXX) XXX-XXXX if 10 digits, otherwise return as-is
     if (cleaned.length === 10) {
-      return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3")
+      return cleaned.replace(/(\d{3})(\d{3})(\d{4})/, "($1) $2-$3");
     }
-    return phone
-  }
+    return phone;
+  };
 
   const formatDate = (dateString: string) => {
-    if (!dateString) return "Never"
+    if (!dateString) return "Never";
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-    })
-  }
+    });
+  };
 
   const handlePhoneNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value
+    const value = e.target.value;
     // Allow only digits, spaces, dashes, parentheses, and plus signs
-    const cleaned = value.replace(/[^\d\s\-$$$$+]/g, "")
-    setPhoneNumber(cleaned)
-  }
+    const cleaned = value.replace(/[^\d\s\-$$$$+]/g, "");
+    setPhoneNumber(cleaned);
+  };
 
   return (
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Find Visitor</h2>
-        <p className="text-gray-600 text-base">Search by phone number or register a new visitor</p>
+        <p className="text-gray-600 text-base">
+          Search by phone number or register a new visitor
+        </p>
       </div>
 
       {/* Search Section */}
       <div className="space-y-4">
         <div>
-          <Label htmlFor="phone" className="text-gray-700 font-medium text-base">
+          <Label
+            htmlFor="phone"
+            className="text-gray-700 font-medium text-base"
+          >
             Phone Number
           </Label>
           <div className="flex space-x-2 mt-1">
@@ -139,7 +155,9 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
               )}
             </Button>
           </div>
-          <p className="text-sm text-gray-500 mt-1">Enter at least 3 digits to search</p>
+          <p className="text-sm text-gray-500 mt-1">
+            Enter at least 3 digits to search
+          </p>
         </div>
 
         {/* Search Results */}
@@ -147,9 +165,14 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
           <div className="space-y-4">
             {searchResults.length > 0 ? (
               <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-gray-900">Found {searchResults.length} visitor(s)</h3>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Found {searchResults.length} visitor(s)
+                </h3>
                 {searchResults.map((visitor) => (
-                  <Card key={visitor.id} className="border-2 hover:border-blue-200 transition-colors cursor-pointer">
+                  <Card
+                    key={visitor.id}
+                    className="border-2 hover:border-blue-200 transition-colors cursor-pointer"
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex-1">
@@ -158,8 +181,12 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
                               <User className="h-5 w-5 text-white" />
                             </div>
                             <div>
-                              <h4 className="font-semibold text-gray-900 text-base">{visitor.name}</h4>
-                              <p className="text-gray-600 text-sm">{formatPhoneNumber(visitor.phone_number)}</p>
+                              <h4 className="font-semibold text-gray-900 text-base">
+                                {visitor.name}
+                              </h4>
+                              <p className="text-gray-600 text-sm">
+                                {formatPhoneNumber(visitor.phone_number)}
+                              </p>
                             </div>
                           </div>
 
@@ -180,19 +207,23 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
                           {visitor.last_visit_details && (
                             <div className="mt-2 p-2 bg-gray-50 rounded-lg">
                               <p className="text-sm text-gray-700">
-                                <span className="font-medium">Last visit:</span> {visitor.last_visit_details.office} -{" "}
+                                <span className="font-medium">Last visit:</span>{" "}
+                                {visitor.last_visit_details.office} -{" "}
                                 {visitor.last_visit_details.reason}
                               </p>
                               {visitor.last_visit_details.has_laptop && (
                                 <p className="text-xs text-gray-600 mt-1">
-                                  Had laptop: {visitor.last_visit_details.laptop_brand}{" "}
+                                  Had laptop:{" "}
+                                  {visitor.last_visit_details.laptop_brand}{" "}
                                   {visitor.last_visit_details.laptop_model}
                                 </p>
                               )}
                               {visitor.last_visit_details?.is_vendor && (
                                 <p className="text-xs text-green-600 mt-1">
-                                  <span className="font-medium">Vendor:</span> {visitor.last_visit_details.company}
-                                  {visitor.last_visit_details.person_in_charge &&
+                                  <span className="font-medium">Vendor:</span>{" "}
+                                  {visitor.last_visit_details.company}
+                                  {visitor.last_visit_details
+                                    .person_in_charge &&
                                     ` (Contact: ${visitor.last_visit_details.person_in_charge})`}
                                 </p>
                               )}
@@ -214,8 +245,12 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
               <Card className="border-dashed border-2 border-gray-300">
                 <CardContent className="p-6 text-center">
                   <User className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No visitors found</h3>
-                  <p className="text-gray-600 text-base mb-4">No visitors found with phone number "{phoneNumber}"</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No visitors found
+                  </h3>
+                  <p className="text-gray-600 text-base mb-4">
+                    No visitors found with phone number "{phoneNumber}"
+                  </p>
                 </CardContent>
               </Card>
             )}
@@ -227,9 +262,16 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
           <Card className="border-dashed border-2 border-blue-300 bg-blue-50">
             <CardContent className="p-6 text-center">
               <UserPlus className="h-12 w-12 text-blue-600 mx-auto mb-3" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">New Visitor</h3>
-              <p className="text-gray-600 text-base mb-4">Register a first-time visitor</p>
-              <Button onClick={onNewVisitor} className="bg-[#2532a1] text-white">
+              <h3 className="text-lg font-medium text-gray-900 mb-2">
+                New Visitor
+              </h3>
+              <p className="text-gray-600 text-base mb-4">
+                Register a first-time visitor
+              </p>
+              <Button
+                onClick={onNewVisitor}
+                className="bg-[#2532a1] text-white"
+              >
                 <UserPlus className="h-4 w-4 mr-2" />
                 Register New Visitor
               </Button>
@@ -238,5 +280,5 @@ export function VisitorSearch({ onVisitorSelect, onNewVisitor }: VisitorSearchPr
         </div>
       </div>
     </div>
-  )
+  );
 }
