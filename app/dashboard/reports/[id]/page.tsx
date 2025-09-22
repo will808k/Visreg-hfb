@@ -1,14 +1,32 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   ArrowLeft,
   Calendar,
@@ -23,105 +41,109 @@ import {
   Building2,
   Eye,
   Package,
-} from "lucide-react"
-import toast from "react-hot-toast"
+} from "lucide-react";
+import toast from "react-hot-toast";
 
 interface Visit {
-  id: number
-  digital_card_no: string | null
-  reason: string
-  office: string
-  has_laptop: boolean
-  laptop_brand: string | null
-  laptop_model: string | null
-  company: string | null
-  person_in_charge: string | null
-  photo: string | null
-  id_photo_front: string | null
-  id_photo_back: string | null
-  signature: string | null
-  sign_in_time: string
-  sign_out_time: string | null
-  duration_minutes: number | null
-  branch_name: string
-  registered_by_name: string
-  status: "active" | "completed"
-  other_items: string[] | null
-  visitee_name: string | null
+  id: number;
+  digital_card_no: string | null;
+  reason: string;
+  office: string;
+  has_laptop: boolean;
+  laptop_brand: string | null;
+  laptop_model: string | null;
+  company: string | null;
+  person_in_charge: string | null;
+  photo: string | null;
+  id_photo_front: string | null;
+  id_photo_back: string | null;
+  signature: string | null;
+  sign_in_time: string;
+  sign_out_time: string | null;
+  duration_minutes: number | null;
+  branch_name: string;
+  registered_by_name: string;
+  status: "active" | "completed";
+  other_items: string[] | null;
+  visitee_name: string | null;
 }
 
 interface Visitor {
-  id: number
-  name: string
-  total_visits: number
-  created_at: string
-  updated_at: string
+  id: number;
+  name: string;
+  total_visits: number;
+  created_at: string;
+  updated_at: string;
 }
 
 interface Statistics {
-  total_visits: number
-  completed_visits: number
-  active_visits: number
-  avg_duration_minutes: number
+  total_visits: number;
+  completed_visits: number;
+  active_visits: number;
+  avg_duration_minutes: number;
 }
 
 interface VisitorDetailsData {
-  visitor: Visitor
-  visits: Visit[]
-  statistics: Statistics
+  visitor: Visitor;
+  visits: Visit[];
+  statistics: Statistics;
 }
 
-export default function VisitorDetailsPage({ params }: { params: { id: string } }) {
-  const [data, setData] = useState<VisitorDetailsData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null)
-  const [isVisitDetailsOpen, setIsVisitDetailsOpen] = useState(false)
-  const router = useRouter()
+export default function VisitorDetailsPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const [data, setData] = useState<VisitorDetailsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
+  const [isVisitDetailsOpen, setIsVisitDetailsOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchVisitorDetails = async () => {
       try {
-        setLoading(true)
-        const token = localStorage.getItem("token")
+        setLoading(true);
+        const token = localStorage.getItem("token");
         if (!token) {
-          router.push("/login")
-          return
+          router.push("/login");
+          return;
         }
 
         const response = await fetch(`/api/reports/visitors/${params.id}`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        })
+        });
 
         if (response.status === 401) {
-          localStorage.removeItem("token")
-          router.push("/login")
-          return
+          localStorage.removeItem("token");
+          router.push("/login");
+          return;
         }
 
         if (response.status === 404) {
-          toast.error("Visitor not found")
-          router.push("/dashboard/reports")
-          return
+          toast.error("Visitor not found");
+          router.push("/dashboard/reports");
+          return;
         }
 
         if (!response.ok) {
-          throw new Error("Failed to fetch visitor details")
+          throw new Error("Failed to fetch visitor details");
         }
 
-        const result = await response.json()
-        setData(result)
+        const result = await response.json();
+        setData(result);
       } catch (error) {
-        console.error("Error fetching visitor details:", error)
-        toast.error("Failed to load visitor details")
+        console.error("Error fetching visitor details:", error);
+        toast.error("Failed to load visitor details");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchVisitorDetails()
-  }, [params.id, router])
+    fetchVisitorDetails();
+  }, [params.id, router]);
 
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString("en-US", {
@@ -130,28 +152,28 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-    })
-  }
+    });
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "long",
       day: "numeric",
-    })
-  }
+    });
+  };
 
   const formatDuration = (minutes: number | null) => {
-    if (!minutes) return "N/A"
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
-  }
+    if (!minutes) return "N/A";
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
 
   const handleViewVisitDetails = (visit: Visit) => {
-    setSelectedVisit(visit)
-    setIsVisitDetailsOpen(true)
-  }
+    setSelectedVisit(visit);
+    setIsVisitDetailsOpen(true);
+  };
 
   if (loading) {
     return (
@@ -173,7 +195,7 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
           ))}
         </div>
       </div>
-    )
+    );
   }
 
   if (!data) {
@@ -192,7 +214,7 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -206,7 +228,8 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
         <div>
           <h1 className="text-3xl font-bold">{data.visitor.name}</h1>
           <p className="text-muted-foreground">
-            Member since {formatDate(data.visitor.created_at)} • Last updated {formatDate(data.visitor.updated_at)}
+            Member since {formatDate(data.visitor.created_at)} • Last updated{" "}
+            {formatDate(data.visitor.updated_at)}
           </p>
         </div>
       </div>
@@ -217,8 +240,12 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base font-medium text-blue-700">Total Visits</p>
-                <p className="text-3xl font-bold text-blue-900">{data.statistics.total_visits}</p>
+                <p className="text-base font-medium text-blue-700">
+                  Total Visits
+                </p>
+                <p className="text-3xl font-bold text-blue-900">
+                  {data.statistics.total_visits}
+                </p>
               </div>
               <div className="p-3 bg-blue-600 rounded-xl">
                 <Calendar className="h-6 w-6 text-white" />
@@ -230,8 +257,12 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base font-medium text-green-700">Completed Visits</p>
-                <p className="text-3xl font-bold text-green-900">{data.statistics.completed_visits}</p>
+                <p className="text-base font-medium text-green-700">
+                  Completed Visits
+                </p>
+                <p className="text-3xl font-bold text-green-900">
+                  {data.statistics.completed_visits}
+                </p>
               </div>
               <div className="p-3 bg-green-600 rounded-xl">
                 <CheckCircle className="h-6 w-6 text-white" />
@@ -243,8 +274,12 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base font-medium text-orange-700">Active Visits</p>
-                <p className="text-3xl font-bold text-orange-900">{data.statistics.active_visits}</p>
+                <p className="text-base font-medium text-orange-700">
+                  Active Visits
+                </p>
+                <p className="text-3xl font-bold text-orange-900">
+                  {data.statistics.active_visits}
+                </p>
               </div>
               <div className="p-3 bg-orange-600 rounded-xl">
                 <XCircle className="h-6 w-6 text-white" />
@@ -256,7 +291,9 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-base font-medium text-purple-700">Avg Duration</p>
+                <p className="text-base font-medium text-purple-700">
+                  Avg Duration
+                </p>
                 <p className="text-3xl font-bold text-purple-900">
                   {formatDuration(data.statistics.avg_duration_minutes)}
                 </p>
@@ -273,11 +310,15 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
       <Card>
         <CardHeader>
           <CardTitle>Visit History</CardTitle>
-          <CardDescription>Complete history of all visits by {data.visitor.name}</CardDescription>
+          <CardDescription>
+            Complete history of all visits by {data.visitor.name}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {data.visits.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">No visits found for this visitor.</div>
+            <div className="text-center py-8 text-muted-foreground">
+              No visits found for this visitor.
+            </div>
           ) : (
             <div className="space-y-1">
               <Table>
@@ -300,20 +341,32 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                         <div className="flex items-center space-x-3">
                           <Avatar className="h-10 w-10">
                             {visit.photo ? (
-                              <AvatarImage src={`data:image/jpeg;base64,${visit.photo}`} alt="Visit photo" />
+                              <AvatarImage
+                                src={`data:image/jpeg;base64,${visit.photo}`}
+                                alt="Visit photo"
+                              />
                             ) : null}
                             <AvatarFallback>
                               <User className="h-4 w-4" />
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{formatDateTime(visit.sign_in_time)}</div>
+                            <div className="font-medium">
+                              {formatDateTime(visit.sign_in_time)}
+                            </div>
                             {visit.sign_out_time && (
                               <div className="text-sm text-muted-foreground">
                                 Out: {formatDateTime(visit.sign_out_time)}
                               </div>
                             )}
-                            <div className="text-xs text-muted-foreground">By: {visit.registered_by_name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Registered by: {visit.registered_by_name}
+                            </div>
+                            {visit.sign_out_time && visit.signedout_by_name && (
+                              <div className="text-xs text-muted-foreground">
+                                Signed out by: {visit.signedout_by_name}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </TableCell>
@@ -349,28 +402,47 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                           <div className="space-y-1">
                             <div className="flex items-center space-x-1">
                               <Building2 className="h-3 w-3 text-green-600" />
-                              <span className="font-medium text-sm">{visit.company}</span>
+                              <span className="font-medium text-sm">
+                                {visit.company}
+                              </span>
                             </div>
                             {visit.person_in_charge && (
-                              <p className="text-xs text-gray-500">Contact: {visit.person_in_charge}</p>
+                              <p className="text-xs text-gray-500">
+                                Contact: {visit.person_in_charge}
+                              </p>
                             )}
-                            <Badge variant="outline" className="bg-green-50 text-green-700 text-xs">
+                            <Badge
+                              variant="outline"
+                              className="bg-green-50 text-green-700 text-xs"
+                            >
                               Vendor
                             </Badge>
                           </div>
                         ) : (
-                          <span className="text-gray-500 text-sm">Regular Visit</span>
+                          <span className="text-gray-500 text-sm">
+                            Regular Visit
+                          </span>
                         )}
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-1">
                           <Clock className="h-3 w-3 text-muted-foreground" />
-                          <span className="font-mono text-sm">{formatDuration(visit.duration_minutes)}</span>
+                          <span className="font-mono text-sm">
+                            {formatDuration(visit.duration_minutes)}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={visit.status === "completed" ? "default" : "destructive"}>
-                          {visit.status === "completed" ? "Completed" : "Active"}
+                        <Badge
+                          variant={
+                            visit.status === "completed"
+                              ? "default"
+                              : "destructive"
+                          }
+                        >
+                          {visit.status === "completed"
+                            ? "Completed"
+                            : "Active"}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -400,7 +472,9 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
       <Dialog open={isVisitDetailsOpen} onOpenChange={setIsVisitDetailsOpen}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-gray-900">Visit Details</DialogTitle>
+            <DialogTitle className="text-2xl font-bold text-gray-900">
+              Visit Details
+            </DialogTitle>
           </DialogHeader>
 
           {selectedVisit && (
@@ -416,14 +490,18 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Sign In Time</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Sign In Time
+                      </Label>
                       <div className="text-base flex items-center mt-1">
                         <Clock className="h-4 w-4 mr-2 text-gray-400" />
                         {formatDateTime(selectedVisit.sign_in_time)}
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Sign Out Time</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Sign Out Time
+                      </Label>
                       <div className="text-base mt-1">
                         {selectedVisit.sign_out_time ? (
                           <div className="flex items-center">
@@ -436,35 +514,58 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Duration</Label>
-                      <div className="text-base mt-1">{formatDuration(selectedVisit.duration_minutes)}</div>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Duration
+                      </Label>
+                      <div className="text-base mt-1">
+                        {formatDuration(selectedVisit.duration_minutes)}
+                      </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Status</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Status
+                      </Label>
                       <div className="mt-1">
-                        <Badge variant={selectedVisit.status === "completed" ? "default" : "destructive"}>
-                          {selectedVisit.status === "completed" ? "Completed" : "Active"}
+                        <Badge
+                          variant={
+                            selectedVisit.status === "completed"
+                              ? "default"
+                              : "destructive"
+                          }
+                        >
+                          {selectedVisit.status === "completed"
+                            ? "Completed"
+                            : "Active"}
                         </Badge>
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Office</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Office
+                      </Label>
                       <div className="text-base flex items-center mt-1">
                         <MapPin className="h-4 w-4 mr-2 text-gray-400" />
                         {selectedVisit.office}
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Reason</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Reason
+                      </Label>
                       <div className="text-base mt-1">
-                        <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                        <Badge
+                          variant="secondary"
+                          className="bg-purple-100 text-purple-700"
+                        >
                           {selectedVisit.reason}
                         </Badge>
                       </div>
                     </div>
                     {selectedVisit.visitee_name && (
                       <div>
-                        <Label className="text-gray-700 font-medium text-base">Visiting</Label>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Visiting
+                        </Label>
                         <div className="text-base flex items-center mt-1">
                           <User className="h-4 w-4 mr-2 text-gray-400" />
                           {selectedVisit.visitee_name}
@@ -472,18 +573,28 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                       </div>
                     )}
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Branch</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Branch
+                      </Label>
                       <div className="mt-1">
-                        <Badge variant="outline">{selectedVisit.branch_name}</Badge>
+                        <Badge variant="outline">
+                          {selectedVisit.branch_name}
+                        </Badge>
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">Registered By</Label>
-                      <div className="text-base mt-1">{selectedVisit.registered_by_name}</div>
+                      <Label className="text-gray-700 font-medium text-base">
+                        Registered By
+                      </Label>
+                      <div className="text-base mt-1">
+                        {selectedVisit.registered_by_name}
+                      </div>
                     </div>
                     {selectedVisit.digital_card_no && (
                       <div>
-                        <Label className="text-gray-700 font-medium text-base">Digital Card</Label>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Digital Card
+                        </Label>
                         <div className="mt-1">
                           <Badge variant="outline" className="font-mono">
                             <CreditCard className="h-3 w-3 mr-1" />
@@ -508,12 +619,20 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
                       <div>
-                        <Label className="text-gray-700 font-medium text-base">Brand</Label>
-                        <div className="text-base mt-1">{selectedVisit.laptop_brand}</div>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Brand
+                        </Label>
+                        <div className="text-base mt-1">
+                          {selectedVisit.laptop_brand}
+                        </div>
                       </div>
                       <div>
-                        <Label className="text-gray-700 font-medium text-base">Serial No.</Label>
-                        <div className="text-base mt-1">{selectedVisit.laptop_model}</div>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Serial No.
+                        </Label>
+                        <div className="text-base mt-1">
+                          {selectedVisit.laptop_model}
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -521,25 +640,30 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
               )}
 
               {/* Other Items */}
-              {selectedVisit.other_items && selectedVisit.other_items.length > 0 && (
-                <Card className="modern-shadow border-0">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-xl">
-                      <Package className="h-5 w-5 mr-2 text-blue-600" />
-                      Other Items
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      {selectedVisit.other_items.map((item, index) => (
-                        <Badge key={index} variant="outline" className="bg-gray-50">
-                          {item}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {selectedVisit.other_items &&
+                selectedVisit.other_items.length > 0 && (
+                  <Card className="modern-shadow border-0">
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-xl">
+                        <Package className="h-5 w-5 mr-2 text-blue-600" />
+                        Other Items
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex flex-wrap gap-2">
+                        {selectedVisit.other_items.map((item, index) => (
+                          <Badge
+                            key={index}
+                            variant="outline"
+                            className="bg-gray-50"
+                          >
+                            {item}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
               {/* Vendor Information */}
               {selectedVisit.company && (
@@ -553,13 +677,21 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                   <CardContent>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-green-50 rounded-lg">
                       <div>
-                        <Label className="text-gray-700 font-medium text-base">Company</Label>
-                        <div className="text-base mt-1">{selectedVisit.company}</div>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Company
+                        </Label>
+                        <div className="text-base mt-1">
+                          {selectedVisit.company}
+                        </div>
                       </div>
                       {selectedVisit.person_in_charge && (
                         <div>
-                          <Label className="text-gray-700 font-medium text-base">Contact Person</Label>
-                          <div className="text-base mt-1">{selectedVisit.person_in_charge}</div>
+                          <Label className="text-gray-700 font-medium text-base">
+                            Contact Person
+                          </Label>
+                          <div className="text-base mt-1">
+                            {selectedVisit.person_in_charge}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -583,7 +715,9 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {selectedVisit.photo && (
                         <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">Visitor Photo</Label>
+                          <Label className="text-gray-700 font-medium text-base">
+                            Visitor Photo
+                          </Label>
                           <div className="border rounded-lg overflow-hidden bg-gray-50">
                             <img
                               src={`data:image/jpeg;base64,${selectedVisit.photo}`}
@@ -595,7 +729,9 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                       )}
                       {selectedVisit.id_photo_front && (
                         <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">ID Front</Label>
+                          <Label className="text-gray-700 font-medium text-base">
+                            ID Front
+                          </Label>
                           <div className="border rounded-lg overflow-hidden bg-gray-50">
                             <img
                               src={`data:image/jpeg;base64,${selectedVisit.id_photo_front}`}
@@ -607,7 +743,9 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                       )}
                       {selectedVisit.id_photo_back && (
                         <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">ID Back</Label>
+                          <Label className="text-gray-700 font-medium text-base">
+                            ID Back
+                          </Label>
                           <div className="border rounded-lg overflow-hidden bg-gray-50">
                             <img
                               src={`data:image/jpeg;base64,${selectedVisit.id_photo_back}`}
@@ -619,7 +757,9 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
                       )}
                       {selectedVisit.signature && (
                         <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">Signature</Label>
+                          <Label className="text-gray-700 font-medium text-base">
+                            Signature
+                          </Label>
                           <div className="border rounded-lg overflow-hidden bg-gray-50">
                             <img
                               src={`data:image/jpeg;base64,${selectedVisit.signature}`}
@@ -636,7 +776,10 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
 
               {/* Action Buttons */}
               <div className="flex justify-end space-x-3 pt-4 border-t">
-                <Button variant="outline" onClick={() => setIsVisitDetailsOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsVisitDetailsOpen(false)}
+                >
                   Close
                 </Button>
               </div>
@@ -645,5 +788,5 @@ export default function VisitorDetailsPage({ params }: { params: { id: string } 
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

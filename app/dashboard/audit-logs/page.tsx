@@ -27,7 +27,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { format } from "date-fns";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfYear,
+  endOfYear,
+} from "date-fns";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Download, FileText, CalendarIcon } from "lucide-react";
+import toast from "react-hot-toast";
 
 interface AuditLog {
   id: number | string;
@@ -55,7 +75,15 @@ export default function AuditLogsPage() {
     includeLogins: false,
     limit: 50,
     offset: 0,
+    dateRange: {
+      from: undefined as Date | undefined,
+      to: undefined as Date | undefined,
+    },
+    month: "",
+    year: "",
   });
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const fetchLogs = async () => {
     try {
@@ -72,6 +100,27 @@ export default function AuditLogsPage() {
       if (filters.operation && filters.operation !== "all")
         params.append("operation", filters.operation);
       if (filters.includeLogins) params.append("include_logins", "true");
+      if (filters.dateRange.from)
+        params.append("start_date", filters.dateRange.from.toISOString());
+      if (filters.dateRange.to)
+        params.append("end_date", filters.dateRange.to.toISOString());
+      if (filters.month) {
+        const [year, month] = filters.month.split("-");
+        const startDate = startOfMonth(
+          new Date(parseInt(year), parseInt(month) - 1)
+        );
+        const endDate = endOfMonth(
+          new Date(parseInt(year), parseInt(month) - 1)
+        );
+        params.append("start_date", startDate.toISOString());
+        params.append("end_date", endDate.toISOString());
+      }
+      if (filters.year) {
+        const startDate = startOfYear(new Date(parseInt(filters.year), 0));
+        const endDate = endOfYear(new Date(parseInt(filters.year), 11));
+        params.append("start_date", startDate.toISOString());
+        params.append("end_date", endDate.toISOString());
+      }
       params.append("limit", filters.limit.toString());
       params.append("offset", filters.offset.toString());
 
@@ -124,6 +173,80 @@ export default function AuditLogsPage() {
     }
   };
 
+  const handleDownloadLogs = async (format: "csv" | "pdf") => {
+    try {
+      setIsDownloading(true);
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("No authentication token found");
+        return;
+      }
+
+      const params = new URLSearchParams();
+      if (filters.table && filters.table !== "all")
+        params.append("table", filters.table);
+      if (filters.operation && filters.operation !== "all")
+        params.append("operation", filters.operation);
+      if (filters.includeLogins) params.append("include_logins", "true");
+      if (filters.dateRange.from)
+        params.append("start_date", filters.dateRange.from.toISOString());
+      if (filters.dateRange.to)
+        params.append("end_date", filters.dateRange.to.toISOString());
+      if (filters.month) {
+        const [year, month] = filters.month.split("-");
+        const startDate = startOfMonth(
+          new Date(parseInt(year), parseInt(month) - 1)
+        );
+        const endDate = endOfMonth(
+          new Date(parseInt(year), parseInt(month) - 1)
+        );
+        params.append("start_date", startDate.toISOString());
+        params.append("end_date", endDate.toISOString());
+      }
+      if (filters.year) {
+        const startDate = startOfYear(new Date(parseInt(filters.year), 0));
+        const endDate = endOfYear(new Date(parseInt(filters.year), 11));
+        params.append("start_date", startDate.toISOString());
+        params.append("end_date", endDate.toISOString());
+      }
+      params.append("format", format);
+
+      const response = await fetch(`/api/audit-logs/download?${params}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to download audit logs");
+      }
+
+      const contentDisposition = response.headers.get("content-disposition");
+      const filename = contentDisposition
+        ? contentDisposition.split("filename=")[1]?.replace(/"/g, "")
+        : `audit-logs-${new Date().toISOString().split("T")[0]}.${format}`;
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success(
+        `Audit logs downloaded successfully as ${format.toUpperCase()}`
+      );
+    } catch (err) {
+      console.error("Download error:", err);
+      toast.error("Failed to download audit logs");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto p-6">
@@ -154,11 +277,35 @@ export default function AuditLogsPage() {
 
   return (
     <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Audit Logs</h1>
-        <p className="text-gray-600 mt-2">
-          Track all CRUD operations on branch offices, branch reasons, and users
-        </p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Audit Logs</h1>
+          <p className="text-gray-600 mt-2">
+            Track all CRUD operations on branch offices, branch reasons, and
+            users
+          </p>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              disabled={isDownloading}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {isDownloading ? "Downloading..." : "Download Logs"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleDownloadLogs("csv")}>
+              <FileText className="h-4 w-4 mr-2" />
+              Download as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleDownloadLogs("pdf")}>
+              <FileText className="h-4 w-4 mr-2" />
+              Download as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Filters */}
@@ -167,7 +314,7 @@ export default function AuditLogsPage() {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Table</label>
               <Select
@@ -248,6 +395,136 @@ export default function AuditLogsPage() {
                 max="100"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Date Range
+              </label>
+              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start text-left font-normal"
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {filters.dateRange.from ? (
+                      filters.dateRange.to ? (
+                        <>
+                          {format(filters.dateRange.from, "LLL dd, y")} -{" "}
+                          {format(filters.dateRange.to, "LLL dd, y")}
+                        </>
+                      ) : (
+                        format(filters.dateRange.from, "LLL dd, y")
+                      )
+                    ) : (
+                      <span>Pick a date range</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    initialFocus
+                    mode="range"
+                    defaultMonth={filters.dateRange.from}
+                    selected={filters.dateRange}
+                    onSelect={(range) => {
+                      setFilters((prev) => ({
+                        ...prev,
+                        dateRange: {
+                          from: range?.from || undefined,
+                          to: range?.to || undefined,
+                        },
+                        month: "",
+                        year: "",
+                      }));
+                      setDatePickerOpen(false);
+                    }}
+                    numberOfMonths={2}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Month</label>
+              <Select
+                value={filters.month}
+                onValueChange={(value) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    month: value === "all" ? "" : value,
+                    dateRange: { from: undefined, to: undefined },
+                    year: "",
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select month" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All months</SelectItem>
+                  {Array.from({ length: 12 }, (_, i) => {
+                    const date = new Date(2024, i);
+                    const year = date.getFullYear();
+                    const month = String(i + 1).padStart(2, "0");
+                    return (
+                      <SelectItem
+                        key={`${year}-${month}`}
+                        value={`${year}-${month}`}
+                      >
+                        {format(date, "MMMM yyyy")}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Year</label>
+              <Select
+                value={filters.year}
+                onValueChange={(value) =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    year: value === "all" ? "" : value,
+                    dateRange: { from: undefined, to: undefined },
+                    month: "",
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select year" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All years</SelectItem>
+                  {Array.from({ length: 5 }, (_, i) => {
+                    const year = new Date().getFullYear() - i;
+                    return (
+                      <SelectItem key={year} value={year.toString()}>
+                        {year}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="mt-4 flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() =>
+                setFilters({
+                  table: "all",
+                  operation: "all",
+                  includeLogins: false,
+                  limit: 50,
+                  offset: 0,
+                  dateRange: { from: undefined, to: undefined },
+                  month: "",
+                  year: "",
+                })
+              }
+            >
+              Clear Filters
+            </Button>
           </div>
         </CardContent>
       </Card>

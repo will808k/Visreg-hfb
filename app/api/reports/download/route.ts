@@ -22,6 +22,7 @@ interface VisitData {
   status: string;
   branch_name: string;
   registered_by_name: string;
+  signedout_by_name: string | null;
 }
 
 export async function GET(request: NextRequest) {
@@ -71,11 +72,13 @@ export async function GET(request: NextRequest) {
           ELSE 'Signed Out'
         END as status,
         b.name as branch_name,
-        u.name as registered_by_name
+        u.name as registered_by_name,
+        u2.name as signedout_by_name
       FROM visits vt
       JOIN visitors v ON vt.visitor_id = v.id
       JOIN branches b ON vt.branch_id = b.id
       JOIN users u ON vt.registered_by = u.id
+      LEFT JOIN users u2 ON vt.signedout_by = u2.id
       WHERE 1=1
     `;
 
@@ -127,6 +130,7 @@ export async function GET(request: NextRequest) {
       Status: row.status,
       Branch: row.branch_name,
       "Registered By": row.registered_by_name,
+      "Signed Out By": row.signedout_by_name || "N/A",
     }));
 
     const dateStr = date && date !== "all" ? date : "all-dates";

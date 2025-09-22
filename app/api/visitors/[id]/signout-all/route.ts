@@ -4,7 +4,7 @@ import { verifyToken } from "@/lib/auth";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
@@ -17,7 +17,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
-    const visitorId = Number.parseInt(params.id);
+    const { id } = await params;
+    const visitorId = Number.parseInt(id);
     if (isNaN(visitorId)) {
       return NextResponse.json(
         { error: "Invalid visitor ID" },
@@ -28,11 +29,11 @@ export async function PATCH(
     // Sign out all active visits for this visitor today
     const [result] = await pool.execute(
       `UPDATE visits 
-       SET sign_out_time = NOW() 
+       SET sign_out_time = NOW(), signedout_by = ? 
        WHERE visitor_id = ? 
        AND DATE(sign_in_time) = CURDATE() 
        AND sign_out_time IS NULL`,
-      [visitorId]
+      [decoded.userId, visitorId]
     );
 
     const updateResult = result as any;

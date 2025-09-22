@@ -62,11 +62,13 @@ export async function GET(request: NextRequest) {
         vis.phone_number,
         vis.visits as total_visits,
         b.name as branch_name,
-        u.name as registered_by_name
+        u.name as registered_by_name,
+        u2.name as signedout_by_name
       FROM visits v
       JOIN visitors vis ON v.visitor_id = vis.id
       JOIN branches b ON v.branch_id = b.id
       JOIN users u ON v.registered_by = u.id
+      LEFT JOIN users u2 ON v.signedout_by = u2.id
       ${whereClause}
       ORDER BY v.sign_in_time DESC
       `,

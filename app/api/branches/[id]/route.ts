@@ -5,7 +5,7 @@ import { setUserContext, clearUserContext } from "@/lib/audit-logger";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
@@ -19,7 +19,8 @@ export async function PUT(
     }
 
     const { name, location, offices, reasons } = await request.json();
-    const branchId = params.id;
+    const { id } = await params;
+    const branchId = id;
 
     // Start transaction
     const connection = await pool.getConnection();

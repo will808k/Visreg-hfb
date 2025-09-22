@@ -18,7 +18,10 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const visitId = id;
+    const visitId = Number.parseInt(id);
+    if (isNaN(visitId)) {
+      return NextResponse.json({ error: "Invalid visit ID" }, { status: 400 });
+    }
 
     // Check if visit exists and is not already signed out
     const [visitCheck] = await pool.execute(

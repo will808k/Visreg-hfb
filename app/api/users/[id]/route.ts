@@ -5,7 +5,7 @@ import { setUserContext, clearUserContext } from "@/lib/audit-logger";
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
@@ -27,7 +27,8 @@ export async function PUT(
       is_active,
       isAdmin,
     } = await request.json();
-    const userId = params.id;
+    const { id } = await params;
+    const userId = id;
 
     // Set user context for audit logging
     await setUserContext(decoded.userId, decoded.name || "Unknown");
@@ -69,7 +70,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
@@ -82,10 +83,12 @@ export async function DELETE(
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
+    const { id } = await params;
+
     // Set user context for audit logging
     await setUserContext(decoded.userId, decoded.name || "Unknown");
 
-    await pool.execute("DELETE FROM users WHERE id = ?", [params.id]);
+    await pool.execute("DELETE FROM users WHERE id = ?", [id]);
 
     // Clear user context
     await clearUserContext();
