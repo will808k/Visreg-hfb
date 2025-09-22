@@ -3,6 +3,8 @@
 import { CardDescription } from "@/components/ui/card";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useTodaysVisitors } from "@/hooks/use-todays-visitors";
+import { PhotoIndicator } from "@/components/photo-indicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -189,9 +191,20 @@ export default function DashboardRegister() {
   const [branchesLoading, setBranchesLoading] = useState(true);
   const [otherItemsInput, setOtherItemsInput] = useState("");
 
-  const [visitors, setVisitors] = useState<GroupedVisitor[]>([]);
-  const [visitorsLoading, setVisitorsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  // Use the visitors hook for data fetching
+  const {
+    visitors,
+    loading: visitorsLoading,
+    error: visitorsError,
+    refresh: refreshVisitors,
+  } = useTodaysVisitors({
+    statusFilter,
+    allBranches: true, // Dashboard shows all branches
+    refetchInterval: 60000, // Refresh every minute
+    includeImages: false, // Don't include images for faster loading
+  });
   const [searchTerm, setSearchTerm] = useState("");
 
   const photoRef = useRef<HTMLInputElement>(null);
@@ -204,7 +217,7 @@ export default function DashboardRegister() {
       return;
     }
     fetchBranches();
-    fetchTodaysVisitors();
+    // Visitors are automatically fetched by the hook
   }, [router]);
 
   const filteredVisitors = visitors.filter((visitor) => {
@@ -259,34 +272,7 @@ export default function DashboardRegister() {
     }
   };
 
-  const fetchTodaysVisitors = async () => {
-    setVisitorsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (statusFilter !== "all") {
-        params.append("status", statusFilter);
-      }
-      params.append("all_branches", "true");
-
-      const response = await fetch(`/api/visitors/today?${params}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setVisitors(Array.isArray(data) ? data : []);
-      } else {
-        toast.error("Failed to fetch visitors");
-      }
-    } catch (error) {
-      console.error("Error fetching visitors:", error);
-      toast.error("Failed to fetch visitors");
-    } finally {
-      setVisitorsLoading(false);
-    }
-  };
+  // fetchTodaysVisitors function removed - now handled by the caching hook
 
   const handleViewVisitDetails = (visit: VisitDetails) => {
     const visitor = visitors.find((v) =>
@@ -332,13 +318,18 @@ export default function DashboardRegister() {
 
       if (response.ok) {
         toast.success("Visitor signed out successfully");
-        fetchTodaysVisitors();
+        // Refresh data
+        await refreshVisitors();
       } else {
         toast.error("Failed to sign out visitor");
+        // Refresh anyway to get current state
+        await refreshVisitors();
       }
     } catch (error) {
       console.error("Error signing out visitor:", error);
       toast.error("Error signing out visitor");
+      // Refresh to get current state
+      await refreshVisitors();
     }
   };
 
@@ -353,14 +344,19 @@ export default function DashboardRegister() {
 
       if (response.ok) {
         toast.success("All visits signed out successfully");
-        fetchTodaysVisitors();
+        // Refresh data
+        await refreshVisitors();
       } else {
         const data = await response.json();
         toast.error(data.error || "Failed to sign out all visits");
+        // Refresh anyway to get current state
+        await refreshVisitors();
       }
     } catch (error) {
       console.error("Error signing out all visits:", error);
       toast.error("Error signing out all visits");
+      // Refresh to get current state
+      await refreshVisitors();
     }
   };
 
@@ -1434,7 +1430,7 @@ export default function DashboardRegister() {
                         </SelectContent>
                       </Select>
                       <Button
-                        onClick={fetchTodaysVisitors}
+                        onClick={refreshVisitors}
                         variant="outline"
                         className="text-base bg-transparent"
                       >
@@ -1738,11 +1734,9 @@ export default function DashboardRegister() {
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex items-center space-x-3">
-                      <VisitorPhoto
-                        photo={selectedVisitorDetails.photo}
-                        name={selectedVisitorDetails.name}
-                        className="h-16 w-16"
-                      />
+                      <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center">
+                        <User className="h-8 w-8 text-gray-400" />
+                      </div>
                       <div>
                         <p className="font-semibold text-lg">
                           {selectedVisitorDetails.name}
@@ -1889,74 +1883,51 @@ export default function DashboardRegister() {
                     </Card>
                   )}
 
-                {/* Photos */}
-                {(selectedVisitorDetails.photo ||
-                  selectedVisitorDetails.id_photo_front ||
-                  selectedVisitorDetails.id_photo_back) && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center text-lg">
-                        <Camera className="h-5 w-5 mr-2 text-blue-600" />
-                        Photos
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {selectedVisitorDetails.photo && (
-                          <div>
-                            <Label className="text-sm font-medium text-gray-500 mb-2 block">
-                              Visitor Photo
-                            </Label>
-                            <Image
-                              src={
-                                selectedVisitorDetails.photo ||
-                                "/placeholder.svg"
-                              }
-                              alt="Visitor"
-                              width={200}
-                              height={200}
-                              className="w-full h-48 object-cover rounded-lg border"
-                            />
-                          </div>
-                        )}
-                        {selectedVisitorDetails.id_photo_front && (
-                          <div>
-                            <Label className="text-sm font-medium text-gray-500 mb-2 block">
-                              ID Front
-                            </Label>
-                            <Image
-                              src={
-                                selectedVisitorDetails.id_photo_front ||
-                                "/placeholder.svg"
-                              }
-                              alt="ID Front"
-                              width={200}
-                              height={200}
-                              className="w-full h-48 object-cover rounded-lg border"
-                            />
-                          </div>
-                        )}
-                        {selectedVisitorDetails.id_photo_back && (
-                          <div>
-                            <Label className="text-sm font-medium text-gray-500 mb-2 block">
-                              ID Back
-                            </Label>
-                            <Image
-                              src={
-                                selectedVisitorDetails.id_photo_back ||
-                                "/placeholder.svg"
-                              }
-                              alt="ID Back"
-                              width={200}
-                              height={200}
-                              className="w-full h-48 object-cover rounded-lg border"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                {/* Photos Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-lg">
+                      <Camera className="h-5 w-5 mr-2 text-blue-600" />
+                      Photos
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Only show photo indicators for photos that exist */}
+                    {selectedVisitorDetails.photo && (
+                      <PhotoIndicator
+                        visitorId={selectedVisitorDetails.id}
+                        photoType="photo"
+                        label="Visitor Photo"
+                      />
+                    )}
+
+                    {selectedVisitorDetails.id_photo_front && (
+                      <PhotoIndicator
+                        visitorId={selectedVisitorDetails.id}
+                        photoType="id_front"
+                        label="ID Front"
+                      />
+                    )}
+
+                    {selectedVisitorDetails.id_photo_back && (
+                      <PhotoIndicator
+                        visitorId={selectedVisitorDetails.id}
+                        photoType="id_back"
+                        label="ID Back"
+                      />
+                    )}
+
+                    {/* Show message if no photos are available */}
+                    {!selectedVisitorDetails.photo &&
+                      !selectedVisitorDetails.id_photo_front &&
+                      !selectedVisitorDetails.id_photo_back && (
+                        <div className="text-center text-gray-500 py-4">
+                          <Camera className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                          <p>No photos available for this visitor</p>
+                        </div>
+                      )}
+                  </CardContent>
+                </Card>
               </div>
             )}
           </DialogContent>

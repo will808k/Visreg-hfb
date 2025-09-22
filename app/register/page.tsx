@@ -3,6 +3,8 @@
 import { CardDescription } from "@/components/ui/card";
 
 import React, { useState, useEffect, useRef } from "react";
+import { useTodaysVisitors } from "@/hooks/use-todays-visitors";
+import { PhotoIndicator } from "@/components/photo-indicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -168,6 +170,12 @@ export default function RegisterPage() {
     src: string;
     alt: string;
   } | null>(null);
+  const [signingOutVisitId, setSigningOutVisitId] = useState<number | null>(
+    null
+  );
+  const [signingOutVisitorId, setSigningOutVisitorId] = useState<number | null>(
+    null
+  );
 
   const [formData, setFormData] = useState({
     name: "",
@@ -197,9 +205,20 @@ export default function RegisterPage() {
   const [branchLoading, setBranchLoading] = useState(true);
 
   // Visitors list state
-  const [visitors, setVisitors] = useState<GroupedVisitor[]>([]);
-  const [visitorsLoading, setVisitorsLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  // Use the visitors hook for data fetching
+  const {
+    visitors,
+    loading: visitorsLoading,
+    error: visitorsError,
+    refresh: refreshVisitors,
+  } = useTodaysVisitors({
+    statusFilter,
+    allBranches: false,
+    refetchInterval: 60000, // Refresh every minute
+    includeImages: false, // Don't include images for faster loading
+  });
   const [searchTerm, setSearchTerm] = useState("");
 
   const photoRef = useRef<HTMLInputElement>(null);
@@ -229,11 +248,8 @@ export default function RegisterPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (activeTab === "visitors") {
-      fetchTodaysVisitors();
-    }
-  }, [activeTab, statusFilter]);
+  // The visitors data is automatically fetched and cached by the hook
+  // No need for manual fetching in useEffect
 
   const fetchUserBranch = async (branchId: number) => {
     setBranchLoading(true);
@@ -254,33 +270,7 @@ export default function RegisterPage() {
     }
   };
 
-  const fetchTodaysVisitors = async () => {
-    setVisitorsLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (statusFilter !== "all") {
-        params.append("status", statusFilter);
-      }
-
-      const response = await fetch(`/api/visitors/today?${params}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setVisitors(Array.isArray(data) ? data : []);
-      } else {
-        toast.error("Failed to fetch visitors");
-      }
-    } catch (error) {
-      console.error("Error fetching visitors:", error);
-      toast.error("Failed to fetch visitors");
-    } finally {
-      setVisitorsLoading(false);
-    }
-  };
+  // fetchTodaysVisitors function removed - now handled by the caching hook
 
   const handleNewVisitor = () => {
     setIsNewVisitor(true);
@@ -430,6 +420,7 @@ export default function RegisterPage() {
   };
 
   const handleSignOut = async (visitorId: number) => {
+    setSigningOutVisitorId(visitorId);
     try {
       const response = await fetch(`/api/visitors/${visitorId}/signout-all`, {
         method: "PATCH",
@@ -443,13 +434,21 @@ export default function RegisterPage() {
         toast.success(
           `Visitor signed out successfully (${data.visits_signed_out} visits)`
         );
-        fetchTodaysVisitors();
+        // Refresh data
+        await refreshVisitors();
       } else {
         const data = await response.json();
         toast.error(data.error || "Failed to sign out visitor");
+        // Refresh anyway to get current state
+        await refreshVisitors();
       }
     } catch (error) {
+      console.error("Error signing out visitor:", error);
       toast.error("An error occurred");
+      // Refresh to get current state
+      await refreshVisitors();
+    } finally {
+      setSigningOutVisitorId(null);
     }
   };
 
@@ -460,33 +459,34 @@ export default function RegisterPage() {
     );
     if (visitor) {
       setSelectedVisitorDetails({
-        id: visit.id,
+        id: visitor.visitor_id,
         digital_card_no: visit.digital_card_no,
         name: visitor.name,
         phone_number: visitor.phone_number,
         reason: visit.reason,
         office: visit.office,
         sign_in_time: visit.sign_in_time,
-        sign_out_time: visit.sign_out_time,
+        sign_out_time: visit.sign_out_time || undefined,
         has_laptop: visit.has_laptop,
-        laptop_brand: visit.laptop_brand,
-        laptop_model: visit.laptop_model,
-        photo: visitor.photo,
+        laptop_brand: visit.laptop_brand || undefined,
+        laptop_model: visit.laptop_model || undefined,
+        photo: visitor.photo || undefined,
         branch_name: visitor.branch_name,
         registered_by_name: visitor.registered_by_name,
-        total_visits: visitor.total_visits,
+        total_visits: visitor.total_visits || undefined,
         other_items: visit.other_items,
-        visitee_name: visit.visitee_name,
-        id_photo_front: visitor.id_photo_front,
-        id_photo_back: visitor.id_photo_back,
-        company: visit.company,
-        person_in_charge: visit.person_in_charge,
+        visitee_name: visit.visitee_name || undefined,
+        id_photo_front: visitor.id_photo_front || undefined,
+        id_photo_back: visitor.id_photo_back || undefined,
+        company: visit.company || undefined,
+        person_in_charge: visit.person_in_charge || undefined,
       });
       setIsDetailsDialogOpen(true);
     }
   };
 
   const handleSignOutSingle = async (visitId: number) => {
+    setSigningOutVisitId(visitId);
     try {
       const response = await fetch(`/api/visitors/${visitId}/signout`, {
         method: "PATCH",
@@ -497,13 +497,20 @@ export default function RegisterPage() {
 
       if (response.ok) {
         toast.success("Visit signed out successfully");
-        fetchTodaysVisitors();
+        // Refresh data
+        await refreshVisitors();
       } else {
         toast.error("Failed to sign out visit");
+        // Refresh anyway to get current state
+        await refreshVisitors();
       }
     } catch (error) {
       console.error("Error signing out visit:", error);
       toast.error("Failed to sign out visit");
+      // Refresh to get current state
+      await refreshVisitors();
+    } finally {
+      setSigningOutVisitId(null);
     }
   };
 
@@ -1516,7 +1523,7 @@ export default function RegisterPage() {
                           </SelectContent>
                         </Select>
                         <Button
-                          onClick={fetchTodaysVisitors}
+                          onClick={refreshVisitors}
                           variant="outline"
                           className="text-base bg-transparent"
                         >
@@ -1761,10 +1768,15 @@ export default function RegisterPage() {
                                           }
                                           variant="outline"
                                           size="sm"
+                                          disabled={
+                                            signingOutVisitId === visit.id
+                                          }
                                           className="text-destructive hover:text-destructive hover:bg-destructive/10 text-sm border-destructive/20"
                                         >
                                           <LogOut className="h-4 w-4 mr-1" />
-                                          Sign Out
+                                          {signingOutVisitId === visit.id
+                                            ? "Signing Out..."
+                                            : "Sign Out"}
                                         </Button>
                                       ) : (
                                         <Button
@@ -1787,10 +1799,17 @@ export default function RegisterPage() {
                                             }
                                             variant="default"
                                             size="sm"
+                                            disabled={
+                                              signingOutVisitorId ===
+                                              visitor.visitor_id
+                                            }
                                             className="bg-primary hover:bg-primary/90 text-primary-foreground text-sm ml-2"
                                           >
                                             <LogOut className="h-4 w-4 mr-1" />
-                                            Sign Out All
+                                            {signingOutVisitorId ===
+                                            visitor.visitor_id
+                                              ? "Signing Out..."
+                                              : "Sign Out All"}
                                           </Button>
                                         )}
                                     </div>
@@ -1832,20 +1851,9 @@ export default function RegisterPage() {
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="flex items-center space-x-3">
-                        <VisitorPhoto
-                          photo={selectedVisitorDetails.photo}
-                          name={selectedVisitorDetails.name}
-                          className="h-16 w-16"
-                          onClick={() => {
-                            if (selectedVisitorDetails.photo) {
-                              const formattedPhoto =
-                                selectedVisitorDetails.photo.startsWith("data:")
-                                  ? selectedVisitorDetails.photo
-                                  : `data:image/jpeg;base64,${selectedVisitorDetails.photo}`;
-                              openImageViewer(formattedPhoto, "Visitor Photo");
-                            }
-                          }}
-                        />
+                        <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center">
+                          <User className="h-8 w-8 text-gray-400" />
+                        </div>
                         <div>
                           <p className="font-semibold text-lg">
                             {selectedVisitorDetails.name}
@@ -2072,86 +2080,51 @@ export default function RegisterPage() {
                     </Card>
                   )}
 
-                  {/* ID Photos */}
-                  {(selectedVisitorDetails.id_photo_front ||
-                    selectedVisitorDetails.id_photo_back) && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center text-lg">
-                          <Camera className="h-5 w-5 mr-2 text-blue-600" />
-                          ID Photos
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                          {selectedVisitorDetails.id_photo_front && (
-                            <div>
-                              <Label className="text-sm font-medium text-gray-500 mb-2 block">
-                                ID Front
-                              </Label>
-                              <div className="border rounded-lg overflow-hidden">
-                                <img
-                                  src={
-                                    selectedVisitorDetails.id_photo_front.startsWith(
-                                      "data:"
-                                    )
-                                      ? selectedVisitorDetails.id_photo_front
-                                      : `data:image/jpeg;base64,${selectedVisitorDetails.id_photo_front}`
-                                  }
-                                  alt="ID Front"
-                                  className="w-full h-48 object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                                  onClick={() => {
-                                    if (selectedVisitorDetails.id_photo_front) {
-                                      openImageViewer(
-                                        selectedVisitorDetails.id_photo_front.startsWith(
-                                          "data:"
-                                        )
-                                          ? selectedVisitorDetails.id_photo_front
-                                          : `data:image/jpeg;base64,${selectedVisitorDetails.id_photo_front}`,
-                                        "ID Front"
-                                      );
-                                    }
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          )}
-                          {selectedVisitorDetails.id_photo_back && (
-                            <div>
-                              <Label className="text-sm font-medium text-gray-500 mb-2 block">
-                                ID Back
-                              </Label>
-                              <div className="border rounded-lg overflow-hidden">
-                                <img
-                                  src={
-                                    selectedVisitorDetails.id_photo_back.startsWith(
-                                      "data:"
-                                    )
-                                      ? selectedVisitorDetails.id_photo_back
-                                      : `data:image/jpeg;base64,${selectedVisitorDetails.id_photo_back}`
-                                  }
-                                  alt="ID Back"
-                                  className="w-full h-48 object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                                  onClick={() => {
-                                    if (selectedVisitorDetails.id_photo_back) {
-                                      openImageViewer(
-                                        selectedVisitorDetails.id_photo_back.startsWith(
-                                          "data:"
-                                        )
-                                          ? selectedVisitorDetails.id_photo_back
-                                          : `data:image/jpeg;base64,${selectedVisitorDetails.id_photo_back}`,
-                                        "ID Back"
-                                      );
-                                    }
-                                  }}
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
+                  {/* Photos Section */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-lg">
+                        <Camera className="h-5 w-5 mr-2 text-blue-600" />
+                        Photos
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Only show photo indicators for photos that exist */}
+                      {selectedVisitorDetails.photo && (
+                        <PhotoIndicator
+                          visitorId={selectedVisitorDetails.id}
+                          photoType="photo"
+                          label="Visitor Photo"
+                        />
+                      )}
+
+                      {selectedVisitorDetails.id_photo_front && (
+                        <PhotoIndicator
+                          visitorId={selectedVisitorDetails.id}
+                          photoType="id_front"
+                          label="ID Front"
+                        />
+                      )}
+
+                      {selectedVisitorDetails.id_photo_back && (
+                        <PhotoIndicator
+                          visitorId={selectedVisitorDetails.id}
+                          photoType="id_back"
+                          label="ID Back"
+                        />
+                      )}
+
+                      {/* Show message if no photos are available */}
+                      {!selectedVisitorDetails.photo &&
+                        !selectedVisitorDetails.id_photo_front &&
+                        !selectedVisitorDetails.id_photo_back && (
+                          <div className="text-center text-gray-500 py-4">
+                            <Camera className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                            <p>No photos available for this visitor</p>
+                          </div>
+                        )}
+                    </CardContent>
+                  </Card>
 
                   {/* Status */}
                   <Card>
@@ -2201,10 +2174,15 @@ export default function RegisterPage() {
                           handleSignOut(selectedVisitorDetails.id);
                           setIsDetailsDialogOpen(false);
                         }}
+                        disabled={
+                          signingOutVisitorId === selectedVisitorDetails.id
+                        }
                         className="bg-red-600 hover:bg-red-700 text-white"
                       >
                         <LogOut className="h-4 w-4 mr-2" />
-                        Sign Out Visitor
+                        {signingOutVisitorId === selectedVisitorDetails.id
+                          ? "Signing Out..."
+                          : "Sign Out Visitor"}
                       </Button>
                     )}
                   </div>

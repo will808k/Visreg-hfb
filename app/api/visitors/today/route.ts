@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
+    const includeImages = searchParams.get("include_images") === "true";
 
     // Build the WHERE clause
     let whereClause = "WHERE DATE(v.sign_in_time) = CURDATE()";
@@ -37,6 +38,11 @@ export async function GET(request: NextRequest) {
       whereClause += " AND v.branch_id = ?";
       queryParams.push(user.branch_id);
     }
+
+    // Always select image columns to check availability, but only include data if requested
+    const imageColumns = includeImages
+      ? "v.photo, v.id_photo_front, v.id_photo_back,"
+      : "CASE WHEN v.photo IS NOT NULL THEN 'has_photo' ELSE NULL END as photo, CASE WHEN v.id_photo_front IS NOT NULL THEN 'has_photo' ELSE NULL END as id_photo_front, CASE WHEN v.id_photo_back IS NOT NULL THEN 'has_photo' ELSE NULL END as id_photo_back,";
 
     const [visits] = await pool.execute(
       `
@@ -51,9 +57,7 @@ export async function GET(request: NextRequest) {
         v.has_laptop,
         v.laptop_brand,
         v.laptop_model,
-        v.photo,
-        v.id_photo_front,
-        v.id_photo_back,
+        ${imageColumns}
         v.company,
         v.person_in_charge,
         v.other_items,
@@ -87,16 +91,28 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Convert BLOB data to base64 for photos
-      const photoBase64 = visit.photo
-        ? Buffer.from(visit.photo).toString("base64")
-        : null;
-      const idFrontBase64 = visit.id_photo_front
-        ? Buffer.from(visit.id_photo_front).toString("base64")
-        : null;
-      const idBackBase64 = visit.id_photo_back
-        ? Buffer.from(visit.id_photo_back).toString("base64")
-        : null;
+      // Convert BLOB data to base64 for photos (only if images are included)
+      let photoBase64 = null;
+      let idFrontBase64 = null;
+      let idBackBase64 = null;
+
+      if (includeImages) {
+        photoBase64 = visit.photo
+          ? Buffer.from(visit.photo).toString("base64")
+          : null;
+        idFrontBase64 = visit.id_photo_front
+          ? Buffer.from(visit.id_photo_front).toString("base64")
+          : null;
+        idBackBase64 = visit.id_photo_back
+          ? Buffer.from(visit.id_photo_back).toString("base64")
+          : null;
+      } else {
+        // When not including images, use the availability indicators
+        photoBase64 = visit.photo === "has_photo" ? "available" : null;
+        idFrontBase64 =
+          visit.id_photo_front === "has_photo" ? "available" : null;
+        idBackBase64 = visit.id_photo_back === "has_photo" ? "available" : null;
+      }
 
       const visitData = {
         id: visit.id,
@@ -104,13 +120,13 @@ export async function GET(request: NextRequest) {
         reason: visit.reason,
         office: visit.office,
         sign_in_time: visit.sign_in_time,
-        sign_out_time: visit.sign_out_time,
+        sign_out_time: visit.sign_out_time || undefined,
         has_laptop: Boolean(visit.has_laptop),
-        laptop_brand: visit.laptop_brand,
-        laptop_model: visit.laptop_model,
-        visitee_name: visit.visitee_name,
-        company: visit.company,
-        person_in_charge: visit.person_in_charge,
+        laptop_brand: visit.laptop_brand || undefined,
+        laptop_model: visit.laptop_model || undefined,
+        visitee_name: visit.visitee_name || undefined,
+        company: visit.company || undefined,
+        person_in_charge: visit.person_in_charge || undefined,
         other_items: otherItems,
       };
 
@@ -129,12 +145,12 @@ export async function GET(request: NextRequest) {
           visitor_id: visit.visitor_id,
           name: visit.name,
           phone_number: visit.phone_number,
-          photo: photoBase64,
-          id_photo_front: idFrontBase64,
-          id_photo_back: idBackBase64,
+          photo: photoBase64 || undefined,
+          id_photo_front: idFrontBase64 || undefined,
+          id_photo_back: idBackBase64 || undefined,
           branch_name: visit.branch_name,
           registered_by_name: visit.registered_by_name,
-          total_visits: visit.total_visits,
+          total_visits: visit.total_visits || undefined,
           has_active_visits: !visit.sign_out_time,
           visits: [visitData],
         });
