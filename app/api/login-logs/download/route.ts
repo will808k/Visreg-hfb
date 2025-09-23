@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
         <body>
           <h1>Login Logs Report</h1>
           <p>Generated on: ${new Date().toLocaleString()}</p>
-          <p>Total Records: ${logs.length}</p>
+          <p>Total Records: ${(logs as any[]).length}</p>
           <table>
             <thead>
               <tr>
