@@ -93,8 +93,9 @@ export async function getLoginLogs(
     values.push(endDate);
   }
 
-  query += " ORDER BY ll.timestamp DESC LIMIT ? OFFSET ?";
-  values.push(limit, offset);
+  query += ` ORDER BY ll.timestamp DESC LIMIT ${Number(limit)} OFFSET ${Number(
+    offset
+  )}`;
 
   const [rows] = await pool.execute(query, values);
   return rows;

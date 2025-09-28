@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get("user_id");
     const recordId = searchParams.get("record_id");
     const includeLogins = searchParams.get("include_logins") === "true";
-    const limit = parseInt(searchParams.get("limit") || "50");
-    const offset = parseInt(searchParams.get("offset") || "0");
+    const limit = parseInt(searchParams.get("limit") || "50") || 50;
+    const offset = parseInt(searchParams.get("offset") || "0") || 0;
 
     let logs;
 

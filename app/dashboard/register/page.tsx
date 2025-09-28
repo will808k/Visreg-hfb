@@ -114,6 +114,7 @@ interface ExistingVisitor {
     is_vendor: boolean;
     company?: string;
     person_in_charge?: string;
+    category?: string;
   } | null;
 }
 
@@ -133,6 +134,7 @@ interface GroupedVisitor {
 
 interface VisitDetails {
   id: number;
+  category: string;
   digital_card_no: string;
   reason: string;
   office: string;
@@ -173,6 +175,7 @@ export default function DashboardRegister() {
     company: "",
     person_in_charge: "",
     other_items: [] as string[],
+    category: "Normal",
   });
 
   const [officeVisits, setOfficeVisits] = useState<OfficeVisit[]>([
@@ -190,6 +193,7 @@ export default function DashboardRegister() {
   const [digitalCardNo, setDigitalCardNo] = useState<string>("");
   const [branchesLoading, setBranchesLoading] = useState(true);
   const [otherItemsInput, setOtherItemsInput] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
 
@@ -389,6 +393,7 @@ export default function DashboardRegister() {
     setIsNewVisitor(true);
     setSelectedVisitor(null);
     setRegistrationStep("form");
+    setSelectedCategory("");
     setFormData({
       name: "",
       phone_number: "", // Added phone_number reset
@@ -401,6 +406,7 @@ export default function DashboardRegister() {
       company: "",
       person_in_charge: "",
       other_items: [] as string[],
+      category: "Normal",
     });
     setOfficeVisits([{ office: "", reason: "", visitee_name: "" }]);
   };
@@ -410,6 +416,12 @@ export default function DashboardRegister() {
     setSelectedVisitor(visitor);
     setRegistrationStep("form");
 
+    // Get category from last visit or default to Normal
+    const lastVisitCategory = visitor.last_visit_details?.category || "Normal";
+
+    // Set the selected category state
+    setSelectedCategory(lastVisitCategory);
+
     setFormData({
       name: visitor.name,
       phone_number: visitor.phone_number, // Added phone_number from visitor
@@ -418,10 +430,11 @@ export default function DashboardRegister() {
       laptop_brand: visitor.last_visit_details?.laptop_brand || "",
       laptop_model: visitor.last_visit_details?.laptop_model || "",
       digital_card_no: "",
-      is_vendor: visitor.last_visit_details?.is_vendor || false,
+      is_vendor: lastVisitCategory === "Vendor", // Set based on category
       company: visitor.last_visit_details?.company || "",
       person_in_charge: visitor.last_visit_details?.person_in_charge || "",
       other_items: [] as string[],
+      category: lastVisitCategory,
     });
 
     setOfficeVisits([
@@ -431,6 +444,15 @@ export default function DashboardRegister() {
         visitee_name: "",
       },
     ]);
+  };
+
+  const handleCategorySelect = (category: string) => {
+    setSelectedCategory(category);
+    setFormData((prev) => ({
+      ...prev,
+      category,
+      is_vendor: category === "Vendor", // Automatically set is_vendor based on category
+    }));
   };
 
   const handleBackToVisitorType = () => {
@@ -488,6 +510,7 @@ export default function DashboardRegister() {
     try {
       const submitData = {
         ...formData,
+        is_vendor: selectedCategory === "Vendor", // Automatically set based on category
         office_visits: validVisits,
         photo,
         id_photo_front: idPhotoFront,
@@ -870,6 +893,88 @@ export default function DashboardRegister() {
                               className="mt-1 h-12 text-base"
                               placeholder="Enter visitor's phone number"
                             />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Visit Category Selection */}
+                      <Card className="modern-shadow border-0">
+                        <CardHeader>
+                          <CardTitle className="flex items-center text-xl">
+                            <Building2 className="h-5 w-5 mr-2 text-blue-600" />
+                            Visit Category
+                          </CardTitle>
+                          <CardDescription className="text-base">
+                            Select the appropriate category for this visit
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* Normal Category */}
+                            <Card
+                              className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                                selectedCategory === "Normal"
+                                  ? "ring-2 ring-blue-500 bg-blue-50"
+                                  : "hover:bg-gray-50"
+                              }`}
+                              onClick={() => handleCategorySelect("Normal")}
+                            >
+                              <CardContent className="p-4 text-center">
+                                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                  <User className="h-6 w-6 text-blue-600" />
+                                </div>
+                                <h3 className="text-base font-semibold text-gray-900 mb-1">
+                                  Normal
+                                </h3>
+                                <p className="text-gray-600 text-xs">
+                                  Regular visitor
+                                </p>
+                              </CardContent>
+                            </Card>
+
+                            {/* Vendor Category */}
+                            <Card
+                              className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                                selectedCategory === "Vendor"
+                                  ? "ring-2 ring-green-500 bg-green-50"
+                                  : "hover:bg-gray-50"
+                              }`}
+                              onClick={() => handleCategorySelect("Vendor")}
+                            >
+                              <CardContent className="p-4 text-center">
+                                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                  <Package className="h-6 w-6 text-green-600" />
+                                </div>
+                                <h3 className="text-base font-semibold text-gray-900 mb-1">
+                                  Vendor
+                                </h3>
+                                <p className="text-gray-600 text-xs">
+                                  External supplier
+                                </p>
+                              </CardContent>
+                            </Card>
+
+                            {/* Employee Category */}
+                            <Card
+                              className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                                selectedCategory === "Employee"
+                                  ? "ring-2 ring-purple-500 bg-purple-50"
+                                  : "hover:bg-gray-50"
+                              }`}
+                              onClick={() => handleCategorySelect("Employee")}
+                            >
+                              <CardContent className="p-4 text-center">
+                                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                  <Building2 className="h-6 w-6 text-purple-600" />
+                                </div>
+                                <h3 className="text-base font-semibold text-gray-900 mb-1">
+                                  Employee
+                                </h3>
+                                <p className="text-gray-600 text-xs">
+                                  Internal staff
+                                </p>
+                              </CardContent>
+                            </Card>
                           </div>
                         </CardContent>
                       </Card>

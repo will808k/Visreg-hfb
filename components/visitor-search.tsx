@@ -30,6 +30,7 @@ interface ExistingVisitor {
     id_photo_back?: string;
     other_items?: string[];
     visitee_name?: string;
+    category?: string;
   } | null;
 }
 

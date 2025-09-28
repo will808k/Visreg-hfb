@@ -68,6 +68,7 @@ export async function POST(request: NextRequest) {
       company,
       person_in_charge,
       other_items = [],
+      category = "Normal",
     } = data;
 
     let finalOfficeVisits = [];
@@ -184,12 +185,13 @@ export async function POST(request: NextRequest) {
 
       const [visitResult] = (await pool.execute(
         `INSERT INTO visits (
-          visitor_id, digital_card_no, reason, office, branch_id, has_laptop, 
+          visitor_id, category, digital_card_no, reason, office, branch_id, has_laptop, 
           laptop_brand, laptop_model, company, person_in_charge, photo, id_photo_front, id_photo_back, 
           sign_in_time, registered_by, other_items, visitee_name
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           finalVisitorId,
+          category || "Normal",
           digitalCardNo,
           officeVisit.reason,
           officeVisit.office,

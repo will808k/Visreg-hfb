@@ -121,7 +121,14 @@ export async function GET(request: NextRequest) {
           WHERE vis2.visitor_id = v.id 
           ORDER BY vis2.sign_in_time DESC 
           LIMIT 1
-        ) as last_id_photo_back
+        ) as last_id_photo_back,
+        (
+          SELECT vis2.category
+          FROM visits vis2 
+          WHERE vis2.visitor_id = v.id 
+          ORDER BY vis2.sign_in_time DESC 
+          LIMIT 1
+        ) as last_category
       FROM visitors v
       WHERE 
         REPLACE(REPLACE(REPLACE(REPLACE(v.phone_number, ' ', ''), '-', ''), '(', ''), ')', '') LIKE ? 
@@ -176,6 +183,7 @@ export async function GET(request: NextRequest) {
           photo: visitor.last_photo || undefined,
           id_photo_front: visitor.last_id_photo_front || undefined,
           id_photo_back: visitor.last_id_photo_back || undefined,
+          category: visitor.last_category || "Normal",
         };
       }
 

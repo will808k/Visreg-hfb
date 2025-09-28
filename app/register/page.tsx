@@ -4,6 +4,7 @@ import { CardDescription } from "@/components/ui/card";
 
 import React, { useState, useEffect, useRef } from "react";
 import { useTodaysVisitors } from "@/hooks/use-todays-visitors";
+import { useVisitorsByDate } from "@/hooks/use-visitors-by-date";
 import { PhotoIndicator } from "@/components/photo-indicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,8 @@ import {
   Package,
   Plus,
   X,
+  Calendar,
+  ChevronLeft,
 } from "lucide-react";
 import { removeAuthToken } from "@/lib/client-auth";
 import toast from "react-hot-toast";
@@ -119,6 +122,7 @@ interface ExistingVisitor {
     id_photo_back?: string;
     other_items?: string[];
     visitee_name?: string;
+    category?: string;
   } | null;
 }
 
@@ -138,6 +142,7 @@ interface GroupedVisitor {
 
 interface VisitDetails {
   id: number;
+  category: string;
   digital_card_no: string;
   reason: string;
   office: string;
@@ -177,6 +182,8 @@ export default function RegisterPage() {
     null
   );
 
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+
   const [formData, setFormData] = useState({
     name: "",
     phone_number: "",
@@ -188,6 +195,7 @@ export default function RegisterPage() {
     company: "",
     person_in_charge: "",
     other_items: [] as string[],
+    category: "Normal",
   });
 
   const [officeVisits, setOfficeVisits] = useState<OfficeVisit[]>([
@@ -195,6 +203,7 @@ export default function RegisterPage() {
   ]);
 
   const [userBranch, setUserBranch] = useState<Branch | null>(null);
+  const [allBranches, setAllBranches] = useState<Branch[]>([]);
   const [photo, setPhoto] = useState<string | null>(null);
   const [idPhotoFront, setIdPhotoFront] = useState<string | null>(null);
   const [idPhotoBack, setIdPhotoBack] = useState<string | null>(null);
@@ -206,19 +215,47 @@ export default function RegisterPage() {
 
   // Visitors list state
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [isDateFilterActive, setIsDateFilterActive] = useState<boolean>(false);
 
   // Use the visitors hook for data fetching
   const {
-    visitors,
-    loading: visitorsLoading,
-    error: visitorsError,
-    refresh: refreshVisitors,
+    visitors: todayVisitors,
+    loading: todayVisitorsLoading,
+    error: todayVisitorsError,
+    refresh: refreshTodayVisitors,
   } = useTodaysVisitors({
     statusFilter,
     allBranches: false,
     refetchInterval: 60000, // Refresh every minute
     includeImages: false, // Don't include images for faster loading
   });
+
+  // Use the date-based visitors hook for custom dates
+  const {
+    visitors: dateVisitors,
+    loading: dateVisitorsLoading,
+    error: dateVisitorsError,
+    refresh: refreshDateVisitors,
+  } = useVisitorsByDate({
+    statusFilter,
+    allBranches: false,
+    refetchInterval: 0, // No auto-refresh for date-based queries
+    includeImages: false,
+    date: selectedDate,
+  });
+
+  // Determine which visitors to use based on date filter
+  const visitors = isDateFilterActive ? dateVisitors : todayVisitors;
+  const visitorsLoading = isDateFilterActive
+    ? dateVisitorsLoading
+    : todayVisitorsLoading;
+  const visitorsError = isDateFilterActive
+    ? dateVisitorsError
+    : todayVisitorsError;
+  const refreshVisitors = isDateFilterActive
+    ? refreshDateVisitors
+    : refreshTodayVisitors;
   const [searchTerm, setSearchTerm] = useState("");
 
   const photoRef = useRef<HTMLInputElement>(null);
@@ -257,6 +294,7 @@ export default function RegisterPage() {
       const response = await fetch("/api/branches");
       if (response.ok) {
         const branches = await response.json();
+        setAllBranches(branches);
         const branch = branches.find((b: Branch) => b.id === branchId);
         if (branch) {
           setUserBranch(branch);
@@ -276,6 +314,7 @@ export default function RegisterPage() {
     setIsNewVisitor(true);
     setSelectedVisitor(null);
     setRegistrationStep("form");
+    setSelectedCategory("");
     setFormData({
       name: "",
       phone_number: "",
@@ -287,14 +326,65 @@ export default function RegisterPage() {
       company: "",
       person_in_charge: "",
       other_items: [], // Reset other items
+      category: "Normal",
     });
     setOfficeVisits([{ office: "", reason: "", visitee_name: "" }]);
+  };
+
+  // Date filtering functions
+  const handleYesterdayClick = () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    setSelectedDate(yesterdayStr);
+    setIsDateFilterActive(true);
+  };
+
+  const handleTodayClick = () => {
+    setIsDateFilterActive(false);
+    setSelectedDate("");
+  };
+
+  const handleDateChange = (date: string) => {
+    if (date) {
+      setSelectedDate(date);
+      setIsDateFilterActive(true);
+    } else {
+      setIsDateFilterActive(false);
+      setSelectedDate("");
+    }
+  };
+
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  const handleCategorySelect = (category: string) => {
+    setSelectedCategory(category);
+    setFormData((prev) => ({
+      ...prev,
+      category,
+      is_vendor: category === "Vendor", // Automatically set is_vendor based on category
+    }));
   };
 
   const handleVisitorSelect = (visitor: ExistingVisitor) => {
     setIsNewVisitor(false);
     setSelectedVisitor(visitor);
     setRegistrationStep("form");
+
+    // Get category from last visit or default to Normal
+    const lastVisitCategory = visitor.last_visit_details?.category || "Normal";
+
+    // Set the selected category state
+    setSelectedCategory(lastVisitCategory);
 
     // Pre-populate form with visitor's last visit details
     setFormData({
@@ -304,10 +394,11 @@ export default function RegisterPage() {
       laptop_brand: visitor.last_visit_details?.laptop_brand || "",
       laptop_model: visitor.last_visit_details?.laptop_model || "",
       digital_card_no: "",
-      is_vendor: visitor.last_visit_details?.is_vendor || false,
+      is_vendor: lastVisitCategory === "Vendor", // Set based on category
       company: visitor.last_visit_details?.company || "",
       person_in_charge: visitor.last_visit_details?.person_in_charge || "",
       other_items: visitor.last_visit_details?.other_items || [],
+      category: lastVisitCategory,
     });
 
     setOfficeVisits([
@@ -383,6 +474,7 @@ export default function RegisterPage() {
     try {
       const submitData = {
         ...formData,
+        is_vendor: selectedCategory === "Vendor", // Automatically set based on category
         office_visits: validVisits,
         photo,
         id_photo_front: idPhotoFront,
@@ -544,6 +636,7 @@ export default function RegisterPage() {
       company: "",
       person_in_charge: "",
       other_items: [],
+      category: "Normal",
     });
     setOfficeVisits([{ office: "", reason: "", visitee_name: "" }]);
     setPhoto(null);
@@ -911,6 +1004,87 @@ export default function RegisterPage() {
                             </div>
                           </CardContent>
                         </Card>
+                        {/* Visit Category Selection */}
+                        <Card className="modern-shadow border-0">
+                          <CardHeader>
+                            <CardTitle className="flex items-center text-xl">
+                              <Building2 className="h-5 w-5 mr-2 text-blue-600" />
+                              Visit Category
+                            </CardTitle>
+                            <CardDescription className="text-base">
+                              Select the appropriate category for this visit
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {/* Normal Category */}
+                              <Card
+                                className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                                  selectedCategory === "Normal"
+                                    ? "ring-2 ring-blue-500 bg-blue-50"
+                                    : "hover:bg-gray-50"
+                                }`}
+                                onClick={() => handleCategorySelect("Normal")}
+                              >
+                                <CardContent className="p-4 text-center">
+                                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <User className="h-6 w-6 text-blue-600" />
+                                  </div>
+                                  <h3 className="text-base font-semibold text-gray-900 mb-1">
+                                    Normal
+                                  </h3>
+                                  <p className="text-gray-600 text-xs">
+                                    Regular visitor
+                                  </p>
+                                </CardContent>
+                              </Card>
+
+                              {/* Vendor Category */}
+                              <Card
+                                className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                                  selectedCategory === "Vendor"
+                                    ? "ring-2 ring-green-500 bg-green-50"
+                                    : "hover:bg-gray-50"
+                                }`}
+                                onClick={() => handleCategorySelect("Vendor")}
+                              >
+                                <CardContent className="p-4 text-center">
+                                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <Package className="h-6 w-6 text-green-600" />
+                                  </div>
+                                  <h3 className="text-base font-semibold text-gray-900 mb-1">
+                                    Vendor
+                                  </h3>
+                                  <p className="text-gray-600 text-xs">
+                                    External supplier
+                                  </p>
+                                </CardContent>
+                              </Card>
+
+                              {/* Employee Category */}
+                              <Card
+                                className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${
+                                  selectedCategory === "Employee"
+                                    ? "ring-2 ring-purple-500 bg-purple-50"
+                                    : "hover:bg-gray-50"
+                                }`}
+                                onClick={() => handleCategorySelect("Employee")}
+                              >
+                                <CardContent className="p-4 text-center">
+                                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                    <Building2 className="h-6 w-6 text-purple-600" />
+                                  </div>
+                                  <h3 className="text-base font-semibold text-gray-900 mb-1">
+                                    Employee
+                                  </h3>
+                                  <p className="text-gray-600 text-xs">
+                                    Internal staff
+                                  </p>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          </CardContent>
+                        </Card>
 
                         {/* Laptop Information */}
                         <Card className="modern-shadow border-0">
@@ -1046,37 +1220,21 @@ export default function RegisterPage() {
                             </div>
                           </CardContent>
                         </Card>
+                      </div>
 
-                        {/* Vendor Information */}
-                        <Card className="modern-shadow border-0">
-                          <CardHeader>
-                            <CardTitle className="flex items-center text-xl">
-                              <Building2 className="h-5 w-5 mr-2 text-blue-600" />
-                              Vendor Information
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-4">
-                            <div className="flex items-center space-x-3">
-                              <Checkbox
-                                id="is_vendor"
-                                checked={formData.is_vendor}
-                                onCheckedChange={(checked) =>
-                                  setFormData((prev) => ({
-                                    ...prev,
-                                    is_vendor: checked as boolean,
-                                  }))
-                                }
-                              />
-                              <Label
-                                htmlFor="is_vendor"
-                                className="text-gray-700 font-medium text-base"
-                              >
-                                This is a vendor visit
-                              </Label>
-                            </div>
-
-                            {formData.is_vendor && (
-                              <div className="grid grid-cols-1 gap-4 mt-4 p-4 bg-green-50 rounded-lg">
+                      {/* Right Column - Office Visits and Photo Capture */}
+                      <div className="space-y-6">
+                        {/* Vendor Information - Show only for Vendor category */}
+                        {selectedCategory === "Vendor" && (
+                          <Card className="modern-shadow border-0">
+                            <CardHeader>
+                              <CardTitle className="flex items-center text-xl">
+                                <Building2 className="h-5 w-5 mr-2 text-blue-600" />
+                                Vendor Information
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                              <div className="grid grid-cols-1 gap-4 p-4 bg-green-50 rounded-lg">
                                 <div>
                                   <Label
                                     htmlFor="company"
@@ -1095,7 +1253,7 @@ export default function RegisterPage() {
                                     }
                                     className="mt-1 h-10 text-base"
                                     placeholder="e.g., ABC Technologies"
-                                    required={formData.is_vendor}
+                                    required
                                   />
                                 </div>
                                 <div>
@@ -1116,142 +1274,182 @@ export default function RegisterPage() {
                                     }
                                     className="mt-1 h-10 text-base"
                                     placeholder="e.g., John Smith"
-                                    required={formData.is_vendor}
+                                    required
                                   />
                                 </div>
                               </div>
-                            )}
-                          </CardContent>
-                        </Card>
-                      </div>
+                            </CardContent>
+                          </Card>
+                        )}
 
-                      {/* Right Column - Office Visits and Photo Capture */}
-                      <div className="space-y-6">
-                        <Card className="modern-shadow border-0">
-                          <CardHeader>
-                            <CardTitle className="flex items-center justify-between text-xl">
-                              <div className="flex items-center">
-                                <Building2 className="h-5 w-5 mr-2 text-blue-600" />
-                                Office Visits
-                              </div>
-                              <Button
-                                type="button"
-                                onClick={addOfficeVisit}
-                                variant="outline"
-                                size="sm"
-                                className="text-blue-600 border-blue-600 hover:bg-blue-50 bg-transparent"
-                              >
-                                <Plus className="h-4 w-4 mr-1" />
-                                Add Office
-                              </Button>
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent className="space-y-6">
-                            {officeVisits.map((visit, index) => (
-                              <div
-                                key={index}
-                                className="p-4 border rounded-lg bg-gray-50 space-y-4"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <h4 className="font-medium text-gray-900">
-                                    Office Visit {index + 1}
-                                  </h4>
-                                  {officeVisits.length > 1 && (
-                                    <Button
-                                      type="button"
-                                      onClick={() => removeOfficeVisit(index)}
-                                      variant="ghost"
-                                      size="sm"
-                                      className="text-red-600 hover:bg-red-50"
+                        {/* Office Visits - Show only after category is selected */}
+                        {selectedCategory && (
+                          <Card className="modern-shadow border-0">
+                            <CardHeader>
+                              <CardTitle className="flex items-center justify-between text-xl">
+                                <div className="flex items-center">
+                                  <Building2 className="h-5 w-5 mr-2 text-blue-600" />
+                                  Office Visits
+                                </div>
+                                <Button
+                                  type="button"
+                                  onClick={addOfficeVisit}
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-blue-600 border-blue-600 hover:bg-blue-50 bg-transparent"
+                                >
+                                  <Plus className="h-4 w-4 mr-1" />
+                                  Add Office
+                                </Button>
+                              </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                              {officeVisits.map((visit, index) => (
+                                <div
+                                  key={index}
+                                  className="p-4 border rounded-lg bg-gray-50 space-y-4"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="font-medium text-gray-900">
+                                      Office Visit {index + 1}
+                                    </h4>
+                                    {officeVisits.length > 1 && (
+                                      <Button
+                                        type="button"
+                                        onClick={() => removeOfficeVisit(index)}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-red-600 hover:bg-red-50"
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <Label className="text-gray-700 font-medium text-base">
+                                      Office to visit *
+                                    </Label>
+                                    <Select
+                                      value={visit.office}
+                                      onValueChange={(value) =>
+                                        updateOfficeVisit(
+                                          index,
+                                          "office",
+                                          value
+                                        )
+                                      }
+                                      required
                                     >
-                                      <X className="h-4 w-4" />
-                                    </Button>
-                                  )}
-                                </div>
+                                      <SelectTrigger className="mt-1 h-12 text-base">
+                                        <SelectValue placeholder="Select office" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {selectedCategory === "Employee" &&
+                                        allBranches.length > 0
+                                          ? allBranches.flatMap((branch) =>
+                                              Array.isArray(branch.offices)
+                                                ? branch.offices.map(
+                                                    (office) => (
+                                                      <SelectItem
+                                                        key={`${branch.name}-${office}`}
+                                                        value={`${branch.name} - ${office}`}
+                                                      >
+                                                        {branch.name} - {office}
+                                                      </SelectItem>
+                                                    )
+                                                  )
+                                                : []
+                                            )
+                                          : userBranch &&
+                                            Array.isArray(userBranch.offices) &&
+                                            userBranch.offices.map((office) => (
+                                              <SelectItem
+                                                key={office}
+                                                value={office}
+                                              >
+                                                {office}
+                                              </SelectItem>
+                                            ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
 
-                                <div>
-                                  <Label className="text-gray-700 font-medium text-base">
-                                    Office to visit *
-                                  </Label>
-                                  <Select
-                                    value={visit.office}
-                                    onValueChange={(value) =>
-                                      updateOfficeVisit(index, "office", value)
-                                    }
-                                    required
-                                  >
-                                    <SelectTrigger className="mt-1 h-12 text-base">
-                                      <SelectValue placeholder="Select office" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {userBranch &&
-                                        Array.isArray(userBranch.offices) &&
-                                        userBranch.offices.map((office) => (
-                                          <SelectItem
-                                            key={office}
-                                            value={office}
-                                          >
-                                            {office}
-                                          </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
+                                  <div>
+                                    <Label className="text-gray-700 font-medium text-base">
+                                      Reason for Visit *
+                                    </Label>
+                                    <Select
+                                      value={visit.reason}
+                                      onValueChange={(value) =>
+                                        updateOfficeVisit(
+                                          index,
+                                          "reason",
+                                          value
+                                        )
+                                      }
+                                      required
+                                    >
+                                      <SelectTrigger className="mt-1 h-12 text-base">
+                                        <SelectValue placeholder="Select reason" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {selectedCategory === "Employee" &&
+                                        allBranches.length > 0
+                                          ? allBranches.flatMap((branch) =>
+                                              Array.isArray(branch.reasons)
+                                                ? branch.reasons.map(
+                                                    (reason) => (
+                                                      <SelectItem
+                                                        key={`${branch.name}-${reason}`}
+                                                        value={`${branch.name} - ${reason}`}
+                                                      >
+                                                        {branch.name} - {reason}
+                                                      </SelectItem>
+                                                    )
+                                                  )
+                                                : []
+                                            )
+                                          : userBranch &&
+                                            Array.isArray(userBranch.reasons) &&
+                                            userBranch.reasons.map((reason) => (
+                                              <SelectItem
+                                                key={reason}
+                                                value={reason}
+                                              >
+                                                {reason}
+                                              </SelectItem>
+                                            ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
 
-                                <div>
-                                  <Label className="text-gray-700 font-medium text-base">
-                                    Reason for Visit *
-                                  </Label>
-                                  <Select
-                                    value={visit.reason}
-                                    onValueChange={(value) =>
-                                      updateOfficeVisit(index, "reason", value)
-                                    }
-                                    required
-                                  >
-                                    <SelectTrigger className="mt-1 h-12 text-base">
-                                      <SelectValue placeholder="Select reason" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {userBranch &&
-                                        Array.isArray(userBranch.reasons) &&
-                                        userBranch.reasons.map((reason) => (
-                                          <SelectItem
-                                            key={reason}
-                                            value={reason}
-                                          >
-                                            {reason}
-                                          </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                  </Select>
+                                  <div>
+                                    <Label className="text-gray-700 font-medium text-base">
+                                      Person to Visit (Optional)
+                                    </Label>
+                                    <Input
+                                      value={visit.visitee_name}
+                                      onChange={(e) =>
+                                        updateOfficeVisit(
+                                          index,
+                                          "visitee_name",
+                                          e.target.value
+                                        )
+                                      }
+                                      className="mt-1 h-12 text-base"
+                                      placeholder="Enter name of person being visited"
+                                    />
+                                    <p className="text-sm text-gray-500 mt-1">
+                                      Optional - Leave empty if not visiting a
+                                      specific person
+                                    </p>
+                                  </div>
                                 </div>
-
-                                <div>
-                                  <Label className="text-gray-700 font-medium text-base">
-                                    Person to Visit (Optional)
-                                  </Label>
-                                  <Input
-                                    value={visit.visitee_name}
-                                    onChange={(e) =>
-                                      updateOfficeVisit(
-                                        index,
-                                        "visitee_name",
-                                        e.target.value
-                                      )
-                                    }
-                                    className="mt-1 h-12 text-base"
-                                    placeholder="Enter name of person being visited"
-                                  />
-                                  <p className="text-sm text-gray-500 mt-1">
-                                    Optional - Leave empty if not visiting a
-                                    specific person
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </CardContent>
-                        </Card>
+                              ))}
+                            </CardContent>
+                          </Card>
+                        )}
 
                         <Card className="modern-shadow border-0">
                           <CardHeader>
@@ -1531,7 +1729,10 @@ export default function RegisterPage() {
                         </Button>
                       </div>
                       <div className="text-base text-gray-600">
-                        Showing {filteredVisitors.length} visitors for today
+                        Showing {filteredVisitors.length} visitors{" "}
+                        {isDateFilterActive
+                          ? `for ${formatDisplayDate(selectedDate)}`
+                          : "for today"}
                         {userBranch && (
                           <span className="text-gray-500">
                             {" "}
@@ -1546,21 +1747,71 @@ export default function RegisterPage() {
                 {/* Visitors Table */}
                 <Card className="modern-shadow border-0">
                   <CardHeader>
-                    <CardTitle className="text-2xl">Today's Visitors</CardTitle>
-                    <CardDescription className="text-base">
-                      {new Date().toLocaleDateString("en-US", {
-                        weekday: "long",
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                      {userBranch && (
-                        <span className="text-gray-500">
-                          {" "}
-                          • {userBranch.name}
-                        </span>
-                      )}
-                    </CardDescription>
+                    <div className="flex flex-col space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <CardTitle className="text-2xl">
+                            {isDateFilterActive
+                              ? "Visitors"
+                              : "Today's Visitors"}
+                          </CardTitle>
+                          <CardDescription className="text-base">
+                            {isDateFilterActive
+                              ? formatDisplayDate(selectedDate)
+                              : new Date().toLocaleDateString("en-US", {
+                                  weekday: "long",
+                                  year: "numeric",
+                                  month: "long",
+                                  day: "numeric",
+                                })}
+                            {userBranch && (
+                              <span className="text-gray-500">
+                                {" "}
+                                • {userBranch.name}
+                              </span>
+                            )}
+                          </CardDescription>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            onClick={handleTodayClick}
+                            variant={
+                              !isDateFilterActive ? "default" : "outline"
+                            }
+                            size="sm"
+                            className="text-sm"
+                          >
+                            Today
+                          </Button>
+                          <Button
+                            onClick={handleYesterdayClick}
+                            variant={
+                              isDateFilterActive &&
+                              selectedDate ===
+                                new Date(Date.now() - 24 * 60 * 60 * 1000)
+                                  .toISOString()
+                                  .split("T")[0]
+                                ? "default"
+                                : "outline"
+                            }
+                            size="sm"
+                            className="text-sm"
+                          >
+                            Yesterday
+                          </Button>
+                          <div className="flex items-center space-x-2">
+                            <Calendar className="h-4 w-4 text-gray-500" />
+                            <Input
+                              type="date"
+                              value={selectedDate}
+                              onChange={(e) => handleDateChange(e.target.value)}
+                              className="w-40 text-sm"
+                              max={new Date().toISOString().split("T")[0]}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {visitorsLoading ? (
@@ -1575,7 +1826,11 @@ export default function RegisterPage() {
                         </h3>
                         <p className="text-gray-600 text-base">
                           {visitors.length === 0
-                            ? "No visitors have been registered today."
+                            ? isDateFilterActive
+                              ? `No visitors were registered on ${formatDisplayDate(
+                                  selectedDate
+                                )}.`
+                              : "No visitors have been registered today."
                             : "No visitors match your current filters."}
                         </p>
                       </div>
@@ -1585,6 +1840,9 @@ export default function RegisterPage() {
                           <TableRow>
                             <TableHead className="text-base font-semibold">
                               Visitor
+                            </TableHead>
+                            <TableHead className="text-base font-semibold">
+                              Category
                             </TableHead>
                             <TableHead className="text-base font-semibold">
                               Card No.
@@ -1623,11 +1881,11 @@ export default function RegisterPage() {
                                       className="border-r border-border"
                                     >
                                       <div className="flex items-center space-x-3">
-                                        <VisitorPhoto
+                                        {/* <VisitorPhoto
                                           photo={visitor.photo}
                                           name={visitor.name}
                                           className="h-12 w-12"
-                                        />
+                                        /> */}
                                         <div>
                                           <p className="font-semibold text-foreground text-base">
                                             {visitor.name}
@@ -1658,6 +1916,32 @@ export default function RegisterPage() {
                                           </div>
                                         </div>
                                       </div>
+                                    </TableCell>
+                                  )}
+
+                                  {visitIndex === 0 && (
+                                    <TableCell
+                                      rowSpan={visitor.visits.length}
+                                      className="border-r border-border"
+                                    >
+                                      <Badge
+                                        variant={
+                                          visit.category === "Normal"
+                                            ? "default"
+                                            : visit.category === "Vendor"
+                                            ? "secondary"
+                                            : "outline"
+                                        }
+                                        className={
+                                          visit.category === "Normal"
+                                            ? "bg-blue-100 text-blue-700"
+                                            : visit.category === "Vendor"
+                                            ? "bg-green-100 text-green-700"
+                                            : "bg-purple-100 text-purple-700"
+                                        }
+                                      >
+                                        {visit.category}
+                                      </Badge>
                                     </TableCell>
                                   )}
 

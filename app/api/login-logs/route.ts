@@ -48,8 +48,8 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("end_date")
       ? new Date(searchParams.get("end_date")!)
       : undefined;
-    const limit = parseInt(searchParams.get("limit") || "50");
-    const offset = parseInt(searchParams.get("offset") || "0");
+    const limit = parseInt(searchParams.get("limit") || "50") || 50;
+    const offset = parseInt(searchParams.get("offset") || "0") || 0;
 
     const logs = await getLoginLogs(
       limit,

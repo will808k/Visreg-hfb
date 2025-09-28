@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
       SELECT 
         v.id,
         v.visitor_id,
+        v.category,
         v.digital_card_no,
         v.reason,
         v.office,
@@ -116,6 +117,7 @@ export async function GET(request: NextRequest) {
 
       const visitData = {
         id: visit.id,
+        category: visit.category || "Normal",
         digital_card_no: visit.digital_card_no,
         reason: visit.reason,
         office: visit.office,

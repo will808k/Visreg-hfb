@@ -102,8 +102,9 @@ export async function getAuditLogs(
     values.push(recordId);
   }
 
-  query += " ORDER BY al.timestamp DESC LIMIT ? OFFSET ?";
-  values.push(limit, offset);
+  query += ` ORDER BY al.timestamp DESC LIMIT ${Number(limit)} OFFSET ${Number(
+    offset
+  )}`;
 
   const [rows] = await pool.execute(query, values);
   return rows;
@@ -127,10 +128,10 @@ export async function getUserAuditLogs(
     LEFT JOIN branches b ON u.branch_id = b.id
     WHERE al.user_id = ?
     ORDER BY al.timestamp DESC 
-    LIMIT ? OFFSET ?
+    LIMIT ${Number(limit)} OFFSET ${Number(offset)}
   `;
 
-  const [rows] = await pool.execute(query, [userId, limit, offset]);
+  const [rows] = await pool.execute(query, [userId]);
   return rows;
 }
 
@@ -166,8 +167,9 @@ export async function getAllAuditLogs(
     values.push(operation);
   }
 
-  query += " ORDER BY al.timestamp DESC LIMIT ? OFFSET ?";
-  values.push(limit, offset);
+  query += ` ORDER BY al.timestamp DESC LIMIT ${Number(limit)} OFFSET ${Number(
+    offset
+  )}`;
 
   const [rows] = await pool.execute(query, values);
   return rows;

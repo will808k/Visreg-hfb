@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 
 interface VisitDetails {
   id: number;
+  category: string;
   digital_card_no: string;
   reason: string;
   office: string;
