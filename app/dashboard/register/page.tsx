@@ -4,6 +4,7 @@ import { CardDescription } from "@/components/ui/card";
 
 import React, { useState, useEffect, useRef } from "react";
 import { useTodaysVisitors } from "@/hooks/use-todays-visitors";
+import { useVisitorsByDate } from "@/hooks/use-visitors-by-date";
 import { PhotoIndicator } from "@/components/photo-indicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,8 @@ import {
   Package,
   Plus,
   X,
+  Calendar,
+  ChevronLeft,
 } from "lucide-react";
 import { removeAuthToken } from "@/lib/client-auth";
 import toast from "react-hot-toast";
@@ -61,6 +64,7 @@ import Image from "next/image";
 import { AuthGuard } from "@/components/auth-guard";
 import { useRouter } from "next/navigation";
 import { isAuthenticated } from "@/lib/client-auth";
+import { compressVisitorPhoto, compressIdPhoto } from "@/lib/image-compression";
 
 interface OfficeVisit {
   office: string;
@@ -196,19 +200,46 @@ export default function DashboardRegister() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [isDateFilterActive, setIsDateFilterActive] = useState<boolean>(false);
 
   // Use the visitors hook for data fetching
   const {
-    visitors,
-    loading: visitorsLoading,
-    error: visitorsError,
-    refresh: refreshVisitors,
+    visitors: todayVisitors,
+    loading: todayVisitorsLoading,
+    error: todayVisitorsError,
+    refresh: refreshTodayVisitors,
   } = useTodaysVisitors({
     statusFilter,
     allBranches: true, // Dashboard shows all branches
     refetchInterval: 60000, // Refresh every minute
     includeImages: false, // Don't include images for faster loading
   });
+
+  const {
+    visitors: dateVisitors,
+    loading: dateVisitorsLoading,
+    error: dateVisitorsError,
+    refresh: refreshDateVisitors,
+  } = useVisitorsByDate({
+    statusFilter,
+    allBranches: true,
+    refetchInterval: 0, // No auto-refresh for date-based queries
+    includeImages: false,
+    date: selectedDate,
+  });
+
+  // Determine which visitors to use based on date filter
+  const visitors = isDateFilterActive ? dateVisitors : todayVisitors;
+  const visitorsLoading = isDateFilterActive
+    ? dateVisitorsLoading
+    : todayVisitorsLoading;
+  const visitorsError = isDateFilterActive
+    ? dateVisitorsError
+    : todayVisitorsError;
+  const refreshVisitors = isDateFilterActive
+    ? refreshDateVisitors
+    : refreshTodayVisitors;
   const [searchTerm, setSearchTerm] = useState("");
 
   const photoRef = useRef<HTMLInputElement>(null);
@@ -274,6 +305,40 @@ export default function DashboardRegister() {
       console.error("Logout error:", error);
       toast.error("Error during logout");
     }
+  };
+
+  // Date filtering functions
+  const handleYesterdayClick = () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split("T")[0];
+    setSelectedDate(yesterdayStr);
+    setIsDateFilterActive(true);
+  };
+
+  const handleTodayClick = () => {
+    setIsDateFilterActive(false);
+    setSelectedDate("");
+  };
+
+  const handleDateChange = (date: string) => {
+    if (date) {
+      setSelectedDate(date);
+      setIsDateFilterActive(true);
+    } else {
+      setIsDateFilterActive(false);
+      setSelectedDate("");
+    }
+  };
+
+  const formatDisplayDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   };
 
   // fetchTodaysVisitors function removed - now handled by the caching hook
@@ -468,12 +533,29 @@ export default function DashboardRegister() {
     setOfficeVisits([{ office: "", reason: "", visitee_name: "" }]);
   };
 
-  const handleImageCapture = (file: File, setter: (value: string) => void) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setter(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+  const handleImageCapture = async (
+    file: File,
+    setter: (value: string) => void,
+    isIdPhoto: boolean = false
+  ) => {
+    try {
+      // Show loading toast
+      const loadingToast = toast.loading("Optimizing image...");
+
+      // Compress the image based on type
+      const compressedBase64 = isIdPhoto
+        ? await compressIdPhoto(file)
+        : await compressVisitorPhoto(file);
+
+      setter(compressedBase64);
+
+      // Show success toast
+      toast.dismiss(loadingToast);
+      toast.success("Image optimized successfully");
+    } catch (error) {
+      console.error("Error handling image:", error);
+      toast.error("Failed to process image");
+    }
   };
 
   const recordSignIn = () => {
@@ -560,6 +642,7 @@ export default function DashboardRegister() {
       company: "",
       person_in_charge: "",
       other_items: [] as string[],
+      category: "Normal",
     });
     setOfficeVisits([{ office: "", reason: "", visitee_name: "" }]);
     setPhoto(null);
@@ -1331,7 +1414,8 @@ export default function DashboardRegister() {
                                 ref={photoRef}
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
-                                  if (file) handleImageCapture(file, setPhoto);
+                                  if (file)
+                                    handleImageCapture(file, setPhoto, false);
                                 }}
                                 className="hidden"
                               />
@@ -1371,7 +1455,11 @@ export default function DashboardRegister() {
                                   onChange={(e) => {
                                     const file = e.target.files?.[0];
                                     if (file)
-                                      handleImageCapture(file, setIdPhotoFront);
+                                      handleImageCapture(
+                                        file,
+                                        setIdPhotoFront,
+                                        true
+                                      );
                                   }}
                                   className="hidden"
                                 />
@@ -1406,7 +1494,11 @@ export default function DashboardRegister() {
                                   onChange={(e) => {
                                     const file = e.target.files?.[0];
                                     if (file)
-                                      handleImageCapture(file, setIdPhotoBack);
+                                      handleImageCapture(
+                                        file,
+                                        setIdPhotoBack,
+                                        true
+                                      );
                                   }}
                                   className="hidden"
                                 />
@@ -1543,7 +1635,10 @@ export default function DashboardRegister() {
                       </Button>
                     </div>
                     <div className="text-base text-gray-600">
-                      Showing {filteredVisitors.length} visitors for today
+                      Showing {filteredVisitors.length} visitors{" "}
+                      {isDateFilterActive
+                        ? `for ${formatDisplayDate(selectedDate)}`
+                        : "for today"}
                       <span className="text-gray-500"> • All Branches</span>
                     </div>
                   </div>
@@ -1553,18 +1648,63 @@ export default function DashboardRegister() {
               {/* Visitors Table */}
               <Card className="modern-shadow border-0">
                 <CardHeader>
-                  <CardTitle className="text-2xl">
-                    Today's Visitors - All Branches
-                  </CardTitle>
-                  <CardDescription className="text-base">
-                    {new Date().toLocaleDateString("en-US", {
-                      weekday: "long",
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                    <span className="text-gray-500"> • All Branches</span>
-                  </CardDescription>
+                  <div className="flex flex-col space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle className="text-2xl">
+                          {isDateFilterActive ? "Visitors" : "Today's Visitors"}{" "}
+                          - All Branches
+                        </CardTitle>
+                        <CardDescription className="text-base">
+                          {isDateFilterActive
+                            ? formatDisplayDate(selectedDate)
+                            : new Date().toLocaleDateString("en-US", {
+                                weekday: "long",
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                          <span className="text-gray-500"> • All Branches</span>
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          onClick={handleTodayClick}
+                          variant={!isDateFilterActive ? "default" : "outline"}
+                          size="sm"
+                          className="text-sm"
+                        >
+                          Today
+                        </Button>
+                        <Button
+                          onClick={handleYesterdayClick}
+                          variant={
+                            isDateFilterActive &&
+                            selectedDate ===
+                              new Date(Date.now() - 24 * 60 * 60 * 1000)
+                                .toISOString()
+                                .split("T")[0]
+                              ? "default"
+                              : "outline"
+                          }
+                          size="sm"
+                          className="text-sm"
+                        >
+                          Yesterday
+                        </Button>
+                        <div className="relative">
+                          <input
+                            type="date"
+                            value={selectedDate}
+                            onChange={(e) => handleDateChange(e.target.value)}
+                            className="text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            max={new Date().toISOString().split("T")[0]}
+                          />
+                          <Calendar className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {visitorsLoading ? (
@@ -1579,7 +1719,11 @@ export default function DashboardRegister() {
                       </h3>
                       <p className="text-gray-600 text-base">
                         {visitors.length === 0
-                          ? "No visitors have been registered today."
+                          ? isDateFilterActive
+                            ? `No visitors were registered on ${formatDisplayDate(
+                                selectedDate
+                              )}.`
+                            : "No visitors have been registered today."
                           : "No visitors match your current filters."}
                       </p>
                     </div>
@@ -1626,11 +1770,11 @@ export default function DashboardRegister() {
                                     className="border-r border-border"
                                   >
                                     <div className="flex items-center space-x-3">
-                                      <VisitorPhoto
+                                      {/* <VisitorPhoto
                                         photo={visitor.photo}
                                         name={visitor.name}
                                         className="h-12 w-12"
-                                      />
+                                      /> */}
                                       <div>
                                         <p className="font-semibold text-foreground text-base">
                                           {visitor.name}

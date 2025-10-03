@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -27,6 +27,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { PhotoIndicator } from "@/components/photo-indicator";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Search,
   Eye,
@@ -46,8 +53,12 @@ import {
   Clock,
   Download,
   FileText,
+  CalendarIcon,
+  X,
+  Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -107,7 +118,11 @@ export default function ReportsPage() {
   const [visitors, setVisitors] = useState<Visitor[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [fromDate, setFromDate] = useState<Date | undefined>(undefined);
+  const [toDate, setToDate] = useState<Date | undefined>(undefined);
+  const [isDateRangeActive, setIsDateRangeActive] = useState<boolean>(false);
   const [availableDates, setAvailableDates] = useState<string[]>([]);
   const [datesLoading, setDatesLoading] = useState(false);
   const [pagination, setPagination] = useState<Pagination>({
@@ -153,7 +168,10 @@ export default function ReportsPage() {
     page = 1,
     search = "",
     vendorFilterValue = vendorFilter,
-    date = selectedDate
+    date: Date | undefined = selectedDate,
+    fromDateParam: Date | undefined = fromDate,
+    toDateParam: Date | undefined = toDate,
+    isDateRangeParam: boolean = isDateRangeActive
   ) => {
     try {
       setLoading(true);
@@ -163,12 +181,23 @@ export default function ReportsPage() {
         return;
       }
 
+      const dateString = date ? date.toISOString().split("T")[0] : "";
+      const fromDateString = fromDateParam
+        ? fromDateParam.toISOString().split("T")[0]
+        : "";
+      const toDateString = toDateParam
+        ? toDateParam.toISOString().split("T")[0]
+        : "";
+
       const queryParams = new URLSearchParams({
         page: page.toString(),
         limit: "10",
         search: search,
         vendor: vendorFilterValue,
-        ...(date && { date }),
+        includeImages: "false", // Don't load images for better performance
+        ...(dateString && !isDateRangeParam && { date: dateString }),
+        ...(isDateRangeParam && fromDateString && { fromDate: fromDateString }),
+        ...(isDateRangeParam && toDateString && { toDate: toDateString }),
       });
 
       const response = await fetch(`/api/reports/visitors?${queryParams}`, {
@@ -208,11 +237,15 @@ export default function ReportsPage() {
         return;
       }
 
+      const dateString = selectedDate
+        ? selectedDate.toISOString().split("T")[0]
+        : "";
+
       const queryParams = new URLSearchParams({
         format,
         search: searchTerm,
         vendor: vendorFilter,
-        ...(selectedDate && { date: selectedDate }),
+        ...(dateString && { date: dateString }),
       });
 
       const response = await fetch(`/api/reports/download?${queryParams}`, {
@@ -228,7 +261,7 @@ export default function ReportsPage() {
       const contentDisposition = response.headers.get("content-disposition");
       const filename = contentDisposition
         ? contentDisposition.split("filename=")[1]?.replace(/"/g, "")
-        : `visitor-report-${selectedDate || "all"}.${format}`;
+        : `visitor-report-${dateString || "all"}.${format}`;
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -256,16 +289,110 @@ export default function ReportsPage() {
     fetchAvailableDates();
   }, []);
 
+  // Trigger fetch when vendor filter, date, or date range changes (not search term)
   useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      fetchVisitors(1, searchTerm, vendorFilter, selectedDate);
-    }, 300);
+    fetchVisitors(
+      1,
+      searchTerm,
+      vendorFilter,
+      selectedDate,
+      fromDate,
+      toDate,
+      isDateRangeActive
+    );
+  }, [vendorFilter, selectedDate, fromDate, toDate, isDateRangeActive]);
 
-    return () => clearTimeout(timeoutId);
-  }, [searchTerm, vendorFilter, selectedDate]);
+  // Handle manual search execution
+  const handleSearch = () => {
+    setSearchTerm(searchInput.trim());
+    fetchVisitors(
+      1,
+      searchInput.trim(),
+      vendorFilter,
+      selectedDate,
+      fromDate,
+      toDate,
+      isDateRangeActive
+    );
+  };
+
+  // Handle Enter key press in search input
+  const handleSearchKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      handleSearch();
+    }
+  };
 
   const handlePageChange = (newPage: number) => {
-    fetchVisitors(newPage, searchTerm, vendorFilter, selectedDate);
+    fetchVisitors(
+      newPage,
+      searchTerm,
+      vendorFilter,
+      selectedDate,
+      fromDate,
+      toDate,
+      isDateRangeActive
+    );
+  };
+
+  // Date range handler functions
+  const handleFromDateChange = (date: Date | undefined) => {
+    setFromDate(date);
+    if (date && toDate && date <= toDate) {
+      setIsDateRangeActive(true);
+      setSelectedDate(undefined); // Clear single date selection
+      fetchVisitors(1, searchTerm, vendorFilter, undefined, date, toDate, true);
+    }
+  };
+
+  const handleToDateChange = (date: Date | undefined) => {
+    setToDate(date);
+    if (date && fromDate && fromDate <= date) {
+      setIsDateRangeActive(true);
+      setSelectedDate(undefined); // Clear single date selection
+      fetchVisitors(
+        1,
+        searchTerm,
+        vendorFilter,
+        undefined,
+        fromDate,
+        date,
+        true
+      );
+    }
+  };
+
+  const handleDateRangeClear = () => {
+    setFromDate(undefined);
+    setToDate(undefined);
+    setIsDateRangeActive(false);
+    fetchVisitors(
+      1,
+      searchTerm,
+      vendorFilter,
+      undefined,
+      undefined,
+      undefined,
+      false
+    );
+  };
+
+  const handleSingleDateChange = (date: Date | undefined) => {
+    setSelectedDate(date);
+    if (date) {
+      setIsDateRangeActive(false);
+      setFromDate(undefined);
+      setToDate(undefined);
+      fetchVisitors(
+        1,
+        searchTerm,
+        vendorFilter,
+        date,
+        undefined,
+        undefined,
+        false
+      );
+    }
   };
 
   const handleViewDetails = (visitorId: number) => {
@@ -450,29 +577,123 @@ export default function ReportsPage() {
         <CardContent>
           {/* Search and Filters */}
           <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-6">
-            <div className="relative flex-1">
-              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search visitors by name..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8"
-              />
+            <div className="relative flex-1 flex gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search visitors by name..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyPress={handleSearchKeyPress}
+                  className="pl-8"
+                />
+              </div>
+              <Button
+                onClick={handleSearch}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                <Search className="h-4 w-4 mr-2" />
+                Search
+              </Button>
             </div>
             <div className="flex space-x-2">
-              <Select value={selectedDate} onValueChange={setSelectedDate}>
-                <SelectTrigger className="w-40">
-                  <SelectValue placeholder="Select date" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All dates</SelectItem>
-                  {availableDates.map((date) => (
-                    <SelectItem key={date} value={date}>
-                      {formatDate(date)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Date Range Pickers */}
+              <div className="flex space-x-2">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[140px] justify-start text-left font-normal text-sm",
+                        !fromDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {fromDate ? (
+                        fromDate.toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      ) : (
+                        <span>From</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={fromDate}
+                      onSelect={handleFromDateChange}
+                      initialFocus
+                      disabled={(date) => (toDate ? date > toDate : false)}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[140px] justify-start text-left font-normal text-sm",
+                        !toDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {toDate ? (
+                        toDate.toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      ) : (
+                        <span>To</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <CalendarComponent
+                      mode="single"
+                      selected={toDate}
+                      onSelect={handleToDateChange}
+                      initialFocus
+                      disabled={(date) => (fromDate ? date < fromDate : false)}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Single Date Picker */}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[180px] justify-start text-left font-normal text-sm",
+                      !selectedDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {selectedDate ? (
+                      selectedDate.toLocaleDateString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                      })
+                    ) : (
+                      <span>Specific Date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={handleSingleDateChange}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+
               <Select value={vendorFilter} onValueChange={setVendorFilter}>
                 <SelectTrigger className="w-48">
                   <SelectValue placeholder="Filter by type" />
@@ -483,15 +704,35 @@ export default function ReportsPage() {
                   <SelectItem value="regular">Regular Visitors</SelectItem>
                 </SelectContent>
               </Select>
-              {(searchTerm || selectedDate || vendorFilter !== "all") && (
+
+              {(searchTerm ||
+                selectedDate ||
+                fromDate ||
+                toDate ||
+                vendorFilter !== "all") && (
                 <Button
                   variant="outline"
                   onClick={() => {
+                    setSearchInput("");
                     setSearchTerm("");
-                    setSelectedDate("");
+                    setSelectedDate(undefined);
+                    setFromDate(undefined);
+                    setToDate(undefined);
+                    setIsDateRangeActive(false);
                     setVendorFilter("all");
+                    fetchVisitors(
+                      1,
+                      "",
+                      "all",
+                      undefined,
+                      undefined,
+                      undefined,
+                      false
+                    );
                   }}
+                  className="hover:bg-red-50 hover:text-red-600 hover:border-red-600"
                 >
+                  <X className="h-4 w-4 mr-1" />
                   Clear
                 </Button>
               )}
@@ -516,7 +757,7 @@ export default function ReportsPage() {
                 {visitors.length === 0 ? (
                   <TableRow className="border-b">
                     <TableCell colSpan={5} className="text-center py-8">
-                      {searchTerm || selectedDate
+                      {searchTerm || selectedDate || vendorFilter !== "all"
                         ? "No visitors found matching your criteria."
                         : "No visitors found."}
                     </TableCell>
@@ -590,6 +831,34 @@ export default function ReportsPage() {
                 Showing {(pagination.page - 1) * pagination.limit + 1} to{" "}
                 {Math.min(pagination.page * pagination.limit, pagination.total)}{" "}
                 of {pagination.total} visitors
+                {selectedDate && (
+                  <span>
+                    {" "}
+                    •{" "}
+                    {selectedDate.toLocaleDateString("en-US", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </span>
+                )}
+                {isDateRangeActive && fromDate && toDate && (
+                  <span>
+                    {" "}
+                    •{" "}
+                    {fromDate.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}{" "}
+                    -{" "}
+                    {toDate.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                )}
               </div>
               <div className="flex items-center space-x-2">
                 <Button
@@ -854,80 +1123,59 @@ export default function ReportsPage() {
                 </Card>
               )}
 
-              {/* Photos and Documents */}
-              {(selectedVisitDetails.photo ||
-                selectedVisitDetails.id_photo_front ||
-                selectedVisitDetails.id_photo_back ||
-                selectedVisitDetails.signature) && (
-                <Card className="modern-shadow border-0">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-xl">
-                      <Camera className="h-5 w-5 mr-2 text-blue-600" />
-                      Photos & Documents
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {selectedVisitDetails.photo && (
-                        <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">
-                            Visitor Photo
-                          </Label>
-                          <div className="border rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={`data:image/jpeg;base64,${selectedVisitDetails.photo}`}
-                              alt="Visitor Photo"
-                              className="w-full h-48 object-cover"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {selectedVisitDetails.id_photo_front && (
-                        <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">
-                            ID Front
-                          </Label>
-                          <div className="border rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={`data:image/jpeg;base64,${selectedVisitDetails.id_photo_front}`}
-                              alt="ID Front"
-                              className="w-full h-48 object-cover"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {selectedVisitDetails.id_photo_back && (
-                        <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">
-                            ID Back
-                          </Label>
-                          <div className="border rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={`data:image/jpeg;base64,${selectedVisitDetails.id_photo_back}`}
-                              alt="ID Back"
-                              className="w-full h-48 object-cover"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {selectedVisitDetails.signature && (
-                        <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">
-                            Signature
-                          </Label>
-                          <div className="border rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={`data:image/jpeg;base64,${selectedVisitDetails.signature}`}
-                              alt="Signature"
-                              className="w-full h-32 object-contain bg-white"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Photos Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-lg">
+                    <Camera className="h-5 w-5 mr-2 text-blue-600" />
+                    Photos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Only show photo indicators for photos that exist */}
+                  {(selectedVisitDetails?.photo === "exists" ||
+                    selectedVisitDetails?.photo) && (
+                    <PhotoIndicator
+                      visitorId={selectedVisitDetails.id}
+                      photoType="photo"
+                      label="Visitor Photo"
+                    />
+                  )}
+                  {(selectedVisitDetails?.id_photo_front === "exists" ||
+                    selectedVisitDetails?.id_photo_front) && (
+                    <PhotoIndicator
+                      visitorId={selectedVisitDetails.id}
+                      photoType="id_front"
+                      label="ID Photo (Front)"
+                    />
+                  )}
+                  {(selectedVisitDetails?.id_photo_back === "exists" ||
+                    selectedVisitDetails?.id_photo_back) && (
+                    <PhotoIndicator
+                      visitorId={selectedVisitDetails.id}
+                      photoType="id_back"
+                      label="ID Photo (Back)"
+                    />
+                  )}
+                  {(selectedVisitDetails?.signature === "exists" ||
+                    selectedVisitDetails?.signature) && (
+                    <PhotoIndicator
+                      visitorId={selectedVisitDetails.id}
+                      photoType="signature"
+                      label="Signature"
+                    />
+                  )}
+                  {!selectedVisitDetails?.photo &&
+                    !selectedVisitDetails?.id_photo_front &&
+                    !selectedVisitDetails?.id_photo_back &&
+                    !selectedVisitDetails?.signature && (
+                      <div className="flex items-center text-gray-600">
+                        <Camera className="h-4 w-4 mr-2" />
+                        <span>No photos available for this visit</span>
+                      </div>
+                    )}
+                </CardContent>
+              </Card>
 
               {/* Action Buttons */}
               <div className="flex justify-end space-x-3 pt-4 border-t">

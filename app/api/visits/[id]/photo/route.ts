@@ -4,7 +4,7 @@ import { verifyToken } from "@/lib/auth";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const token = request.headers.get("authorization")?.replace("Bearer ", "");
@@ -17,9 +17,20 @@ export async function GET(
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
-    const visitorId = params.id;
+    const { id } = await params;
     const { searchParams } = new URL(request.url);
-    const photoType = searchParams.get("type") || "photo"; // photo, id_front, id_back
+    const photoType = searchParams.get("type") || "photo";
+
+    // Map photo types to database columns
+    const photoColumnMap = {
+      photo: "photo",
+      id_front: "id_photo_front",
+      id_back: "id_photo_back",
+      signature: "signature",
+    };
+
+    const columnName =
+      photoColumnMap[photoType as keyof typeof photoColumnMap] || "photo";
 
     // Get user info to determine branch filtering
     const [userRows] = await pool.execute(
@@ -32,49 +43,36 @@ export async function GET(
       return NextResponse.json({ error: "User not found" }, { status: 401 });
     }
 
-    // Build the query based on photo type
-    let photoColumn = "v.photo";
-    if (photoType === "id_front") {
-      photoColumn = "v.id_photo_front";
-    } else if (photoType === "id_back") {
-      photoColumn = "v.id_photo_back";
-    }
-
-    // Build WHERE clause with branch filtering
-    let whereClause = "WHERE v.visitor_id = ?";
-    const queryParams: any[] = [visitorId];
-
-    if (!user.isAdmin && user.branch_id) {
-      whereClause += " AND v.branch_id = ?";
-      queryParams.push(user.branch_id);
-    }
-
-    const [visits] = await pool.execute(
-      `
-      SELECT ${photoColumn} as photo_data
+    // Get the photo from the specific visit
+    let query = `
+      SELECT ${columnName}
       FROM visits v
-      ${whereClause}
-      ORDER BY v.sign_in_time DESC
-      LIMIT 1
-      `,
-      queryParams
-    );
+      WHERE v.id = ?
+    `;
 
-    const visit = (visits as any[])[0];
-    if (!visit || !visit.photo_data) {
+    const params_array: any[] = [id];
+
+    // Add branch filtering for non-admin users
+    if (!user.isAdmin && user.branch_id) {
+      query += " AND v.branch_id = ?";
+      params_array.push(user.branch_id);
+    }
+
+    const [photoRows] = await pool.execute(query, params_array);
+    const photoData = (photoRows as any[])[0];
+
+    if (!photoData || !photoData[columnName]) {
       return NextResponse.json({ error: "Photo not found" }, { status: 404 });
     }
 
-    // Convert BLOB to base64
-    const photoBase64 = Buffer.from(visit.photo_data).toString("base64");
+    // Convert buffer to base64
+    const photoBase64 = photoData[columnName].toString("base64");
 
     return NextResponse.json({
       photo: photoBase64,
-      type: photoType,
-      visitor_id: visitorId,
     });
   } catch (error) {
-    console.error("Error fetching visitor photo:", error);
+    console.error("Photo fetch error:", error);
     return NextResponse.json(
       { error: "Failed to fetch photo" },
       { status: 500 }

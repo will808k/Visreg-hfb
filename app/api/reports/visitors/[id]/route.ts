@@ -17,6 +17,9 @@ export async function GET(
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
+    const { searchParams } = new URL(request.url);
+    const includeImages = searchParams.get("includeImages") === "true";
+
     const { id } = await params;
     const visitorId = Number.parseInt(id);
     if (isNaN(visitorId)) {
@@ -71,10 +74,11 @@ export async function GET(
         vis.laptop_model,
         vis.company,
         vis.person_in_charge,
-        vis.photo,
-        vis.id_photo_front,
-        vis.id_photo_back,
-        vis.signature,
+         ${
+           includeImages
+             ? "vis.photo, vis.id_photo_front, vis.id_photo_back, vis.signature,"
+             : "CASE WHEN vis.photo IS NOT NULL THEN 'exists' ELSE NULL END as photo, CASE WHEN vis.id_photo_front IS NOT NULL THEN 'exists' ELSE NULL END as id_photo_front, CASE WHEN vis.id_photo_back IS NOT NULL THEN 'exists' ELSE NULL END as id_photo_back, CASE WHEN vis.signature IS NOT NULL THEN 'exists' ELSE NULL END as signature,"
+         }
         vis.sign_in_time,
         vis.sign_out_time,
         CASE 
@@ -98,17 +102,33 @@ export async function GET(
       queryParams
     );
 
-    // Convert photo buffers to base64
+    // Convert photo buffers to base64 (only if includeImages is true)
     const visits = (visitsRows as any[]).map((visit) => ({
       ...visit,
-      photo: visit.photo ? visit.photo.toString("base64") : null,
-      id_photo_front: visit.id_photo_front
-        ? visit.id_photo_front.toString("base64")
-        : null,
-      id_photo_back: visit.id_photo_back
-        ? visit.id_photo_back.toString("base64")
-        : null,
-      signature: visit.signature ? visit.signature.toString("base64") : null,
+      photo:
+        includeImages && visit.photo
+          ? visit.photo.toString("base64")
+          : visit.photo === "exists"
+          ? "exists"
+          : null,
+      id_photo_front:
+        includeImages && visit.id_photo_front
+          ? visit.id_photo_front.toString("base64")
+          : visit.id_photo_front === "exists"
+          ? "exists"
+          : null,
+      id_photo_back:
+        includeImages && visit.id_photo_back
+          ? visit.id_photo_back.toString("base64")
+          : visit.id_photo_back === "exists"
+          ? "exists"
+          : null,
+      signature:
+        includeImages && visit.signature
+          ? visit.signature.toString("base64")
+          : visit.signature === "exists"
+          ? "exists"
+          : null,
     }));
 
     // Calculate statistics

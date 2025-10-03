@@ -35,7 +35,7 @@ export function useVisitorImage({
       }
 
       const response = await fetch(
-        `/api/visitors/${visitorId}/photo?type=${photoType}`,
+        `/api/visits/${visitorId}/photo?type=${photoType}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

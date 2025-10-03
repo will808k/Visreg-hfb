@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -27,6 +27,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { PhotoIndicator } from "@/components/photo-indicator";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   ArrowLeft,
   Calendar,
@@ -41,6 +48,9 @@ import {
   Building2,
   Eye,
   Package,
+  Download,
+  FileText,
+  Loader2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -66,6 +76,7 @@ interface Visit {
   status: "active" | "completed";
   other_items: string[] | null;
   visitee_name: string | null;
+  signedout_by_name: string | null;
 }
 
 interface Visitor {
@@ -92,12 +103,14 @@ interface VisitorDetailsData {
 export default function VisitorDetailsPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  const resolvedParams = use(params);
   const [data, setData] = useState<VisitorDetailsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedVisit, setSelectedVisit] = useState<Visit | null>(null);
   const [isVisitDetailsOpen, setIsVisitDetailsOpen] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -110,11 +123,14 @@ export default function VisitorDetailsPage({
           return;
         }
 
-        const response = await fetch(`/api/reports/visitors/${params.id}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetch(
+          `/api/reports/visitors/${resolvedParams.id}?includeImages=false`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
         if (response.status === 401) {
           localStorage.removeItem("token");
@@ -143,7 +159,7 @@ export default function VisitorDetailsPage({
     };
 
     fetchVisitorDetails();
-  }, [params.id, router]);
+  }, [resolvedParams.id, router]);
 
   const formatDateTime = (dateString: string) => {
     return new Date(dateString).toLocaleString("en-US", {
@@ -173,6 +189,152 @@ export default function VisitorDetailsPage({
   const handleViewVisitDetails = (visit: Visit) => {
     setSelectedVisit(visit);
     setIsVisitDetailsOpen(true);
+  };
+
+  const handleDownloadVisits = async (format: "csv" | "pdf") => {
+    if (!data) return;
+
+    try {
+      setIsDownloading(true);
+      const token = localStorage.getItem("token");
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+
+      const queryParams = new URLSearchParams({
+        format,
+        visitor_id: resolvedParams.id,
+      });
+
+      const response = await fetch(
+        `/api/reports/visitor-download?${queryParams}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        // If API endpoint doesn't exist, fall back to client-side CSV generation
+        if (format === "csv") {
+          await handleClientSideCSVDownload();
+          return;
+        }
+        throw new Error("Failed to download report");
+      }
+
+      const contentDisposition = response.headers.get("content-disposition");
+      const filename = contentDisposition
+        ? contentDisposition.split("filename=")[1]?.replace(/"/g, "")
+        : `${data.visitor.name}_visits_${
+            new Date().toISOString().split("T")[0]
+          }.${format}`;
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success(
+        `Visit data downloaded successfully as ${format.toUpperCase()}`
+      );
+    } catch (error) {
+      console.error("Error downloading visits:", error);
+      toast.error("Failed to download visit data");
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleClientSideCSVDownload = async () => {
+    if (!data) return;
+
+    // Prepare CSV data
+    const csvHeaders = [
+      "Visit ID",
+      "Digital Card No",
+      "Reason",
+      "Office",
+      "Sign In Time",
+      "Sign Out Time",
+      "Duration (minutes)",
+      "Status",
+      "Branch",
+      "Registered By",
+      "Has Laptop",
+      "Laptop Brand",
+      "Laptop Model",
+      "Company",
+      "Person In Charge",
+      "Visitee Name",
+      "Other Items",
+    ];
+
+    const csvRows = data.visits.map((visit) => [
+      visit.id,
+      visit.digital_card_no || "",
+      visit.reason,
+      visit.office,
+      formatDateTime(visit.sign_in_time),
+      visit.sign_out_time ? formatDateTime(visit.sign_out_time) : "",
+      visit.duration_minutes || "",
+      visit.status,
+      visit.branch_name,
+      visit.registered_by_name,
+      visit.has_laptop ? "Yes" : "No",
+      visit.laptop_brand || "",
+      visit.laptop_model || "",
+      visit.company || "",
+      visit.person_in_charge || "",
+      visit.visitee_name || "",
+      visit.other_items ? visit.other_items.join(", ") : "",
+    ]);
+
+    // Create CSV content
+    const csvContent = [
+      csvHeaders.join(","),
+      ...csvRows.map((row) =>
+        row
+          .map((field) => {
+            // Escape fields that contain commas or quotes
+            const stringField = String(field || "");
+            if (
+              stringField.includes(",") ||
+              stringField.includes('"') ||
+              stringField.includes("\n")
+            ) {
+              return `"${stringField.replace(/"/g, '""')}"`;
+            }
+            return stringField;
+          })
+          .join(",")
+      ),
+    ].join("\n");
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `${data.visitor.name}_visits_${
+        new Date().toISOString().split("T")[0]
+      }.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    toast.success("Visit data downloaded successfully!");
   };
 
   if (loading) {
@@ -220,18 +382,45 @@ export default function VisitorDetailsPage({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center space-x-4">
-        <Button variant="outline" size="sm" onClick={() => router.back()}>
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Reports
-        </Button>
-        <div>
-          <h1 className="text-3xl font-bold">{data.visitor.name}</h1>
-          <p className="text-muted-foreground">
-            Member since {formatDate(data.visitor.created_at)} • Last updated{" "}
-            {formatDate(data.visitor.updated_at)}
-          </p>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-4">
+          <Button variant="outline" size="sm" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Reports
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">{data.visitor.name}</h1>
+            <p className="text-muted-foreground">
+              Member since {formatDate(data.visitor.created_at)} • Last updated{" "}
+              {formatDate(data.visitor.updated_at)}
+            </p>
+          </div>
         </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              disabled={isDownloading}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              {isDownloading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4 mr-2" />
+              )}
+              {isDownloading ? "Downloading..." : "Download Visits"}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => handleDownloadVisits("csv")}>
+              <FileText className="h-4 w-4 mr-2" />
+              Download as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleDownloadVisits("pdf")}>
+              <FileText className="h-4 w-4 mr-2" />
+              Download as PDF
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Statistics Cards */}
@@ -339,7 +528,7 @@ export default function VisitorDetailsPage({
                     <TableRow key={visit.id} className="border-b">
                       <TableCell>
                         <div className="flex items-center space-x-3">
-                          <Avatar className="h-10 w-10">
+                          {/* <Avatar className="h-10 w-10">
                             {visit.photo ? (
                               <AvatarImage
                                 src={`data:image/jpeg;base64,${visit.photo}`}
@@ -349,7 +538,10 @@ export default function VisitorDetailsPage({
                             <AvatarFallback>
                               <User className="h-4 w-4" />
                             </AvatarFallback>
-                          </Avatar>
+                          </Avatar> */}
+                          <div className="h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center">
+                            <User className="h-4 w-4 text-gray-500" />
+                          </div>
                           <div>
                             <div className="font-medium">
                               {formatDateTime(visit.sign_in_time)}
@@ -699,80 +891,59 @@ export default function VisitorDetailsPage({
                 </Card>
               )}
 
-              {/* Photos and Documents */}
-              {(selectedVisit.photo ||
-                selectedVisit.id_photo_front ||
-                selectedVisit.id_photo_back ||
-                selectedVisit.signature) && (
-                <Card className="modern-shadow border-0">
-                  <CardHeader>
-                    <CardTitle className="flex items-center text-xl">
-                      <Camera className="h-5 w-5 mr-2 text-blue-600" />
-                      Photos & Documents
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {selectedVisit.photo && (
-                        <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">
-                            Visitor Photo
-                          </Label>
-                          <div className="border rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={`data:image/jpeg;base64,${selectedVisit.photo}`}
-                              alt="Visitor Photo"
-                              className="w-full h-48 object-cover"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {selectedVisit.id_photo_front && (
-                        <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">
-                            ID Front
-                          </Label>
-                          <div className="border rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={`data:image/jpeg;base64,${selectedVisit.id_photo_front}`}
-                              alt="ID Front"
-                              className="w-full h-48 object-cover"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {selectedVisit.id_photo_back && (
-                        <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">
-                            ID Back
-                          </Label>
-                          <div className="border rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={`data:image/jpeg;base64,${selectedVisit.id_photo_back}`}
-                              alt="ID Back"
-                              className="w-full h-48 object-cover"
-                            />
-                          </div>
-                        </div>
-                      )}
-                      {selectedVisit.signature && (
-                        <div className="space-y-3">
-                          <Label className="text-gray-700 font-medium text-base">
-                            Signature
-                          </Label>
-                          <div className="border rounded-lg overflow-hidden bg-gray-50">
-                            <img
-                              src={`data:image/jpeg;base64,${selectedVisit.signature}`}
-                              alt="Signature"
-                              className="w-full h-32 object-contain bg-white"
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              {/* Photos Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center text-lg">
+                    <Camera className="h-5 w-5 mr-2 text-blue-600" />
+                    Photos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Only show photo indicators for photos that exist */}
+                  {(selectedVisit?.photo === "exists" ||
+                    selectedVisit?.photo) && (
+                    <PhotoIndicator
+                      visitorId={parseInt(resolvedParams.id)}
+                      photoType="photo"
+                      label="Visitor Photo"
+                    />
+                  )}
+                  {(selectedVisit?.id_photo_front === "exists" ||
+                    selectedVisit?.id_photo_front) && (
+                    <PhotoIndicator
+                      visitorId={parseInt(resolvedParams.id)}
+                      photoType="id_front"
+                      label="ID Photo (Front)"
+                    />
+                  )}
+                  {(selectedVisit?.id_photo_back === "exists" ||
+                    selectedVisit?.id_photo_back) && (
+                    <PhotoIndicator
+                      visitorId={parseInt(resolvedParams.id)}
+                      photoType="id_back"
+                      label="ID Photo (Back)"
+                    />
+                  )}
+                  {(selectedVisit?.signature === "exists" ||
+                    selectedVisit?.signature) && (
+                    <PhotoIndicator
+                      visitorId={parseInt(resolvedParams.id)}
+                      photoType="signature"
+                      label="Signature"
+                    />
+                  )}
+                  {!selectedVisit?.photo &&
+                    !selectedVisit?.id_photo_front &&
+                    !selectedVisit?.id_photo_back &&
+                    !selectedVisit?.signature && (
+                      <div className="flex items-center text-gray-600">
+                        <Camera className="h-4 w-4 mr-2" />
+                        <span>No photos available for this visit</span>
+                      </div>
+                    )}
+                </CardContent>
+              </Card>
 
               {/* Action Buttons */}
               <div className="flex justify-end space-x-3 pt-4 border-t">

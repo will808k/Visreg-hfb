@@ -1,39 +1,45 @@
-import { type NextRequest, NextResponse } from "next/server"
-import pool from "@/lib/db"
-import { verifyToken } from "@/lib/auth"
+import { type NextRequest, NextResponse } from "next/server";
+import pool from "@/lib/db";
+import { verifyToken } from "@/lib/auth";
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get("authorization")?.replace("Bearer ", "")
+    const token = request.headers.get("authorization")?.replace("Bearer ", "");
     if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const decoded = verifyToken(token)
+    const decoded = verifyToken(token);
     if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url)
-    const page = Number.parseInt(searchParams.get("page") || "1")
-    const limit = Number.parseInt(searchParams.get("limit") || "10")
-    const search = searchParams.get("search") || ""
-    const vendorFilter = searchParams.get("vendor") || "all"
-    const selectedDate = searchParams.get("date") || ""
-    const offset = (page - 1) * limit
+    const { searchParams } = new URL(request.url);
+    const page = Number.parseInt(searchParams.get("page") || "1");
+    const limit = Number.parseInt(searchParams.get("limit") || "10");
+    const search = searchParams.get("search") || "";
+    const vendorFilter = searchParams.get("vendor") || "all";
+    const selectedDate = searchParams.get("date") || "";
+    const fromDate = searchParams.get("fromDate") || "";
+    const toDate = searchParams.get("toDate") || "";
+    const includeImages = searchParams.get("includeImages") === "true";
+    const offset = (page - 1) * limit;
 
     // Get user info to determine branch filtering
-    const [userRows] = await pool.execute("SELECT id, branch_id, isAdmin FROM users WHERE id = ?", [decoded.userId])
-    const user = (userRows as any[])[0]
+    const [userRows] = await pool.execute(
+      "SELECT id, branch_id, isAdmin FROM users WHERE id = ?",
+      [decoded.userId]
+    );
+    const user = (userRows as any[])[0];
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 401 })
+      return NextResponse.json({ error: "User not found" }, { status: 401 });
     }
 
     // Build parameters array
-    const params: any[] = []
-    let whereClause = ""
-    let joinClause = ""
+    const params: any[] = [];
+    let whereClause = "";
+    let joinClause = "";
     let selectClause = `
       vis.id,
       vis.name,
@@ -41,15 +47,26 @@ export async function GET(request: NextRequest) {
       vis.visits as visit_count,
       vis.created_at,
       vis.updated_at as last_visit
-    `
+    `;
 
     // If date filter is applied, we need to join with visits table and get visit details for that date
-    if (selectedDate) {
-      joinClause = `
-        INNER JOIN visits v ON vis.id = v.visitor_id 
-        AND DATE(v.sign_in_time) = ?
-      `
-      params.push(selectedDate)
+    const isDateFiltered = selectedDate || (fromDate && toDate);
+    if (isDateFiltered) {
+      if (fromDate && toDate) {
+        // Date range filter
+        joinClause = `
+          INNER JOIN visits v ON vis.id = v.visitor_id 
+          AND DATE(v.sign_in_time) >= ? AND DATE(v.sign_in_time) <= ?
+        `;
+        params.push(fromDate, toDate);
+      } else if (selectedDate) {
+        // Single date filter
+        joinClause = `
+          INNER JOIN visits v ON vis.id = v.visitor_id 
+          AND DATE(v.sign_in_time) = ?
+        `;
+        params.push(selectedDate);
+      }
 
       // Add visit details to select when filtering by date
       selectClause += `,
@@ -62,10 +79,11 @@ export async function GET(request: NextRequest) {
         v.laptop_model,
         v.company,
         v.person_in_charge,
-        v.photo,
-        v.id_photo_front,
-        v.id_photo_back,
-        v.signature,
+        ${
+          includeImages
+            ? "v.photo, v.id_photo_front, v.id_photo_back, v.signature,"
+            : "CASE WHEN v.photo IS NOT NULL THEN 'exists' ELSE NULL END as photo, CASE WHEN v.id_photo_front IS NOT NULL THEN 'exists' ELSE NULL END as id_photo_front, CASE WHEN v.id_photo_back IS NOT NULL THEN 'exists' ELSE NULL END as id_photo_back, CASE WHEN v.signature IS NOT NULL THEN 'exists' ELSE NULL END as signature,"
+        }
         v.sign_in_time,
         v.sign_out_time,
         v.other_items,
@@ -81,11 +99,11 @@ export async function GET(request: NextRequest) {
           WHEN v.sign_out_time IS NULL THEN 'active'
           ELSE 'completed'
         END as status
-      `
+      `;
       joinClause += `
         LEFT JOIN branches b ON v.branch_id = b.id
         LEFT JOIN users u ON v.registered_by = u.id
-      `
+      `;
     } else {
       // For non-date filtered queries, get the last visit details
       selectClause += `,
@@ -100,10 +118,26 @@ export async function GET(request: NextRequest) {
             'laptop_model', v2.laptop_model,
             'company', v2.company,
             'person_in_charge', v2.person_in_charge,
-            'photo', CASE WHEN v2.photo IS NOT NULL THEN TO_BASE64(v2.photo) ELSE NULL END,
-            'id_photo_front', CASE WHEN v2.id_photo_front IS NOT NULL THEN TO_BASE64(v2.id_photo_front) ELSE NULL END,
-            'id_photo_back', CASE WHEN v2.id_photo_back IS NOT NULL THEN TO_BASE64(v2.id_photo_back) ELSE NULL END,
-            'signature', CASE WHEN v2.signature IS NOT NULL THEN TO_BASE64(v2.signature) ELSE NULL END,
+             'photo', ${
+               includeImages
+                 ? "CASE WHEN v2.photo IS NOT NULL THEN TO_BASE64(v2.photo) ELSE NULL END"
+                 : "CASE WHEN v2.photo IS NOT NULL THEN 'exists' ELSE NULL END"
+             },
+             'id_photo_front', ${
+               includeImages
+                 ? "CASE WHEN v2.id_photo_front IS NOT NULL THEN TO_BASE64(v2.id_photo_front) ELSE NULL END"
+                 : "CASE WHEN v2.id_photo_front IS NOT NULL THEN 'exists' ELSE NULL END"
+             },
+             'id_photo_back', ${
+               includeImages
+                 ? "CASE WHEN v2.id_photo_back IS NOT NULL THEN TO_BASE64(v2.id_photo_back) ELSE NULL END"
+                 : "CASE WHEN v2.id_photo_back IS NOT NULL THEN 'exists' ELSE NULL END"
+             },
+             'signature', ${
+               includeImages
+                 ? "CASE WHEN v2.signature IS NOT NULL THEN TO_BASE64(v2.signature) ELSE NULL END"
+                 : "CASE WHEN v2.signature IS NOT NULL THEN 'exists' ELSE NULL END"
+             },
             'sign_in_time', v2.sign_in_time,
             'sign_out_time', v2.sign_out_time,
             'other_items', v2.other_items,
@@ -127,38 +161,41 @@ export async function GET(request: NextRequest) {
           ORDER BY v2.sign_in_time DESC
           LIMIT 1
         ) as last_visit_details
-      `
+      `;
     }
 
     // Add search filtering
     if (search.trim()) {
-      whereClause += " AND vis.name LIKE ?"
-      params.push(`%${search}%`)
+      whereClause += " AND vis.name LIKE ?";
+      params.push(`%${search}%`);
     }
 
     // Add vendor filtering
     if (vendorFilter === "vendors") {
-      if (selectedDate) {
-        whereClause += " AND v.company IS NOT NULL"
+      if (isDateFiltered) {
+        whereClause += " AND v.company IS NOT NULL";
       } else {
-        whereClause += " AND EXISTS (SELECT 1 FROM visits v WHERE v.visitor_id = vis.id AND v.company IS NOT NULL)"
+        whereClause +=
+          " AND EXISTS (SELECT 1 FROM visits v WHERE v.visitor_id = vis.id AND v.company IS NOT NULL)";
       }
     } else if (vendorFilter === "regular") {
-      if (selectedDate) {
-        whereClause += " AND v.company IS NULL"
+      if (isDateFiltered) {
+        whereClause += " AND v.company IS NULL";
       } else {
-        whereClause += " AND NOT EXISTS (SELECT 1 FROM visits v WHERE v.visitor_id = vis.id AND v.company IS NOT NULL)"
+        whereClause +=
+          " AND NOT EXISTS (SELECT 1 FROM visits v WHERE v.visitor_id = vis.id AND v.company IS NOT NULL)";
       }
     }
 
     // Add branch filtering for non-admin users
     if (!user.isAdmin && user.branch_id) {
-      if (selectedDate) {
-        whereClause += " AND v.branch_id = ?"
-        params.push(user.branch_id)
+      if (isDateFiltered) {
+        whereClause += " AND v.branch_id = ?";
+        params.push(user.branch_id);
       } else {
-        whereClause += " AND EXISTS (SELECT 1 FROM visits v WHERE v.visitor_id = vis.id AND v.branch_id = ?)"
-        params.push(user.branch_id)
+        whereClause +=
+          " AND EXISTS (SELECT 1 FROM visits v WHERE v.visitor_id = vis.id AND v.branch_id = ?)";
+        params.push(user.branch_id);
       }
     }
 
@@ -168,32 +205,32 @@ export async function GET(request: NextRequest) {
       FROM visitors vis
       ${joinClause}
       WHERE 1=1 ${whereClause}
-      ORDER BY ${selectedDate ? "v.sign_in_time" : "vis.created_at"} DESC
+      ORDER BY ${isDateFiltered ? "v.sign_in_time" : "vis.created_at"} DESC
       LIMIT ${limit} OFFSET ${offset}
-    `
+    `;
 
-    console.log("Visitors Query:", visitorsQuery)
-    console.log("Params:", params)
+    console.log("Visitors Query:", visitorsQuery);
+    console.log("Params:", params);
 
-    const [visitors] = await pool.execute(visitorsQuery, params)
+    const [visitors] = await pool.execute(visitorsQuery, params);
 
     // Get total count for pagination
     const countQuery = `
-      SELECT COUNT(${selectedDate ? "DISTINCT vis.id" : "*"}) as total
+      SELECT COUNT(${isDateFiltered ? "DISTINCT vis.id" : "*"}) as total
       FROM visitors vis
       ${joinClause}
       WHERE 1=1 ${whereClause}
-    `
+    `;
 
-    const [countResult] = await pool.execute(countQuery, params)
-    const total = (countResult as any[])[0].total
-    const totalPages = Math.ceil(total / limit)
+    const [countResult] = await pool.execute(countQuery, params);
+    const total = (countResult as any[])[0].total;
+    const totalPages = Math.ceil(total / limit);
 
     // Format the response data
     const formattedVisitors = (visitors as any[]).map((visitor) => {
-      let lastVisitDetails = null
+      let lastVisitDetails = null;
 
-      if (selectedDate) {
+      if (isDateFiltered) {
         // For date-filtered queries, construct the visit details from the joined data
         lastVisitDetails = {
           id: visitor.visit_id,
@@ -205,29 +242,53 @@ export async function GET(request: NextRequest) {
           laptop_model: visitor.laptop_model,
           company: visitor.company,
           person_in_charge: visitor.person_in_charge,
-          photo: visitor.photo ? visitor.photo.toString("base64") : null,
-          id_photo_front: visitor.id_photo_front ? visitor.id_photo_front.toString("base64") : null,
-          id_photo_back: visitor.id_photo_back ? visitor.id_photo_back.toString("base64") : null,
-          signature: visitor.signature ? visitor.signature.toString("base64") : null,
+          photo:
+            includeImages && visitor.photo
+              ? visitor.photo.toString("base64")
+              : visitor.photo === "exists"
+              ? "exists"
+              : null,
+          id_photo_front:
+            includeImages && visitor.id_photo_front
+              ? visitor.id_photo_front.toString("base64")
+              : visitor.id_photo_front === "exists"
+              ? "exists"
+              : null,
+          id_photo_back:
+            includeImages && visitor.id_photo_back
+              ? visitor.id_photo_back.toString("base64")
+              : visitor.id_photo_back === "exists"
+              ? "exists"
+              : null,
+          signature:
+            includeImages && visitor.signature
+              ? visitor.signature.toString("base64")
+              : visitor.signature === "exists"
+              ? "exists"
+              : null,
           sign_in_time: visitor.sign_in_time,
           sign_out_time: visitor.sign_out_time,
-          other_items: visitor.other_items ? JSON.parse(visitor.other_items) : null,
+          other_items: visitor.other_items
+            ? JSON.parse(visitor.other_items)
+            : null,
           visitee_name: visitor.visitee_name,
           duration_minutes: visitor.duration_minutes,
           branch_name: visitor.branch_name,
           registered_by_name: visitor.registered_by_name,
           status: visitor.status,
-        }
+        };
       } else if (visitor.last_visit_details) {
         // For non-date-filtered queries, parse the JSON object
         try {
-          lastVisitDetails = JSON.parse(visitor.last_visit_details)
+          lastVisitDetails = JSON.parse(visitor.last_visit_details);
           if (lastVisitDetails && lastVisitDetails.other_items) {
-            lastVisitDetails.other_items = JSON.parse(lastVisitDetails.other_items)
+            lastVisitDetails.other_items = JSON.parse(
+              lastVisitDetails.other_items
+            );
           }
         } catch (e) {
-          console.error("Error parsing last_visit_details:", e)
-          lastVisitDetails = null
+          console.error("Error parsing last_visit_details:", e);
+          lastVisitDetails = null;
         }
       }
 
@@ -239,8 +300,8 @@ export async function GET(request: NextRequest) {
         last_visit: visitor.last_visit || visitor.created_at,
         total_visits: visitor.visit_count || 0,
         last_visit_details: lastVisitDetails,
-      }
-    })
+      };
+    });
 
     return NextResponse.json({
       visitors: formattedVisitors,
@@ -252,9 +313,12 @@ export async function GET(request: NextRequest) {
         hasNext: page < totalPages,
         hasPrev: page > 1,
       },
-    })
+    });
   } catch (error) {
-    console.error("Reports error:", error)
-    return NextResponse.json({ error: "Failed to fetch visitor reports" }, { status: 500 })
+    console.error("Reports error:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch visitor reports" },
+      { status: 500 }
+    );
   }
 }

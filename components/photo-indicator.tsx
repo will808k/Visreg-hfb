@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 
 interface PhotoIndicatorProps {
   visitorId: number;
-  photoType: "photo" | "id_front" | "id_back";
+  photoType: "photo" | "id_front" | "id_back" | "signature";
   label: string;
   className?: string;
 }

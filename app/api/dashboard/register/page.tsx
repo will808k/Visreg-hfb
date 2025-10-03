@@ -1,23 +1,39 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useEffect, useRef } from "react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Camera, Upload, Clock, User, Building2, Laptop, CheckCircle, AlertCircle } from "lucide-react"
-import toast from "react-hot-toast"
+import type React from "react";
+import { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+  Camera,
+  Upload,
+  Clock,
+  User,
+  Building2,
+  Laptop,
+  CheckCircle,
+  AlertCircle,
+} from "lucide-react";
+import toast from "react-hot-toast";
+import { compressVisitorPhoto, compressIdPhoto } from "@/lib/image-compression";
 
 interface Branch {
-  id: number
-  name: string
-  offices: string[]
-  reasons: string[]
+  id: number;
+  name: string;
+  offices: string[];
+  reasons: string[];
 }
 
 export default function DashboardRegister() {
@@ -29,92 +45,114 @@ export default function DashboardRegister() {
     has_laptop: false,
     laptop_brand: "",
     laptop_model: "",
-  })
+  });
 
-  const [branches, setBranches] = useState<Branch[]>([])
-  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null)
-  const [photo, setPhoto] = useState<string | null>(null)
-  const [idPhotoFront, setIdPhotoFront] = useState<string | null>(null)
-  const [idPhotoBack, setIdPhotoBack] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [signInTime, setSignInTime] = useState<string | null>(null)
-  const [isSubmitted, setIsSubmitted] = useState(false)
-  const [digitalCardNo, setDigitalCardNo] = useState<string>("")
-  const [branchesLoading, setBranchesLoading] = useState(true)
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [idPhotoFront, setIdPhotoFront] = useState<string | null>(null);
+  const [idPhotoBack, setIdPhotoBack] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [signInTime, setSignInTime] = useState<string | null>(null);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [digitalCardNo, setDigitalCardNo] = useState<string>("");
+  const [branchesLoading, setBranchesLoading] = useState(true);
 
-  const photoRef = useRef<HTMLInputElement>(null)
-  const idFrontRef = useRef<HTMLInputElement>(null)
-  const idBackRef = useRef<HTMLInputElement>(null)
+  const photoRef = useRef<HTMLInputElement>(null);
+  const idFrontRef = useRef<HTMLInputElement>(null);
+  const idBackRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetchBranches()
-  }, [])
+    fetchBranches();
+  }, []);
 
   const fetchBranches = async () => {
-    setBranchesLoading(true)
+    setBranchesLoading(true);
     try {
-      const response = await fetch("/api/branches")
+      const response = await fetch("/api/branches");
       if (response.ok) {
-        const data = await response.json()
-        setBranches(Array.isArray(data) ? data : [])
+        const data = await response.json();
+        setBranches(Array.isArray(data) ? data : []);
       } else {
-        console.error("Failed to fetch branches:", response.statusText)
-        setBranches([])
-        toast.error("Failed to load branches")
+        console.error("Failed to fetch branches:", response.statusText);
+        setBranches([]);
+        toast.error("Failed to load branches");
       }
     } catch (error) {
-      console.error("Error fetching branches:", error)
-      setBranches([])
-      toast.error("Failed to load branches")
+      console.error("Error fetching branches:", error);
+      setBranches([]);
+      toast.error("Failed to load branches");
     } finally {
-      setBranchesLoading(false)
+      setBranchesLoading(false);
     }
-  }
+  };
 
   const handleBranchChange = (branchId: string) => {
-    const branch = branches.find((b) => b.id.toString() === branchId)
-    setSelectedBranch(branch || null)
-    setFormData((prev) => ({ ...prev, branch_id: branchId, reason: "", office: "" }))
-  }
+    const branch = branches.find((b) => b.id.toString() === branchId);
+    setSelectedBranch(branch || null);
+    setFormData((prev) => ({
+      ...prev,
+      branch_id: branchId,
+      reason: "",
+      office: "",
+    }));
+  };
 
-  const handleImageCapture = (file: File, setter: (value: string) => void) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      setter(e.target?.result as string)
+  const handleImageCapture = async (
+    file: File,
+    setter: (value: string) => void,
+    isIdPhoto: boolean = false
+  ) => {
+    try {
+      // Show loading toast
+      const loadingToast = toast.loading("Optimizing image...");
+
+      // Compress the image based on type
+      const compressedBase64 = isIdPhoto
+        ? await compressIdPhoto(file)
+        : await compressVisitorPhoto(file);
+
+      setter(compressedBase64);
+
+      // Show success toast
+      toast.dismiss(loadingToast);
+      toast.success("Image optimized successfully");
+    } catch (error) {
+      console.error("Error handling image:", error);
+      toast.error("Failed to process image");
     }
-    reader.readAsDataURL(file)
-  }
+  };
 
   const recordSignIn = () => {
-    const now = new Date().toLocaleString()
-    setSignInTime(now)
-    toast.success("Sign-in time recorded!")
-  }
+    const now = new Date().toLocaleString();
+    setSignInTime(now);
+    toast.success("Sign-in time recorded!");
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!signInTime) {
-      toast.error("Please record sign-in time first")
-      return
+      toast.error("Please record sign-in time first");
+      return;
     }
 
     if (!formData.branch_id) {
-      toast.error("Please select a branch")
-      return
+      toast.error("Please select a branch");
+      return;
     }
 
     if (!formData.office) {
-      toast.error("Please select an office")
-      return
+      toast.error("Please select an office");
+      return;
     }
 
     if (!formData.reason) {
-      toast.error("Please select a reason for visit")
-      return
+      toast.error("Please select a reason for visit");
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
     try {
       const submitData = {
@@ -123,7 +161,7 @@ export default function DashboardRegister() {
         id_photo_front: idPhotoFront,
         id_photo_back: idPhotoBack,
         sign_in_time: new Date().toISOString(),
-      }
+      };
 
       const response = await fetch("/api/visitors/register", {
         method: "POST",
@@ -132,25 +170,25 @@ export default function DashboardRegister() {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
         body: JSON.stringify(submitData),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (response.ok) {
-        setDigitalCardNo(data.digital_card_no)
-        setIsSubmitted(true)
-        toast.success(`Visitor registered successfully!`)
+        setDigitalCardNo(data.digital_card_no);
+        setIsSubmitted(true);
+        toast.success(`Visitor registered successfully!`);
       } else {
-        console.error("Registration failed:", data)
-        toast.error(data.error || "Registration failed")
+        console.error("Registration failed:", data);
+        toast.error(data.error || "Registration failed");
       }
     } catch (error) {
-      console.error("Registration error:", error)
-      toast.error("An error occurred during registration")
+      console.error("Registration error:", error);
+      toast.error("An error occurred during registration");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -161,15 +199,15 @@ export default function DashboardRegister() {
       has_laptop: false,
       laptop_brand: "",
       laptop_model: "",
-    })
-    setPhoto(null)
-    setIdPhotoFront(null)
-    setIdPhotoBack(null)
-    setSignInTime(null)
-    setSelectedBranch(null)
-    setIsSubmitted(false)
-    setDigitalCardNo("")
-  }
+    });
+    setPhoto(null);
+    setIdPhotoFront(null);
+    setIdPhotoBack(null);
+    setSignInTime(null);
+    setSelectedBranch(null);
+    setIsSubmitted(false);
+    setDigitalCardNo("");
+  };
 
   if (isSubmitted) {
     return (
@@ -179,11 +217,17 @@ export default function DashboardRegister() {
             <div className="w-16 h-16 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckCircle className="h-8 w-8 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Registration Successful!</h2>
-            <p className="text-gray-600 mb-6 text-base">Visitor has been registered successfully</p>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Registration Successful!
+            </h2>
+            <p className="text-gray-600 mb-6 text-base">
+              Visitor has been registered successfully
+            </p>
 
             <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl p-6 mb-6">
-              <p className="text-gray-600 mb-2 text-base">Digital Card Number</p>
+              <p className="text-gray-600 mb-2 text-base">
+                Digital Card Number
+              </p>
               <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 {digitalCardNo}
               </p>
@@ -200,7 +244,7 @@ export default function DashboardRegister() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   return (
@@ -208,7 +252,9 @@ export default function DashboardRegister() {
       {/* Header */}
       <div>
         <h1 className="text-4xl font-bold text-gray-900">Register Visitor</h1>
-        <p className="text-gray-600 mt-2 text-lg">Register a new visitor from the admin dashboard</p>
+        <p className="text-gray-600 mt-2 text-lg">
+          Register a new visitor from the admin dashboard
+        </p>
       </div>
 
       {/* Show warning if no branches exist */}
@@ -218,9 +264,12 @@ export default function DashboardRegister() {
             <div className="flex items-center">
               <AlertCircle className="h-5 w-5 text-yellow-600 mr-3" />
               <div>
-                <h3 className="text-lg font-medium text-yellow-800">No Branches Available</h3>
+                <h3 className="text-lg font-medium text-yellow-800">
+                  No Branches Available
+                </h3>
                 <p className="text-yellow-700 mt-1">
-                  No branches have been configured yet. Please set up branches before registering visitors.
+                  No branches have been configured yet. Please set up branches
+                  before registering visitors.
                 </p>
               </div>
             </div>
@@ -232,8 +281,12 @@ export default function DashboardRegister() {
         <Card className="modern-shadow border-0">
           <CardContent className="p-8 text-center">
             <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-gray-900 mb-2">No Branches Available</h3>
-            <p className="text-gray-600 text-base">Please set up branches before registering visitors.</p>
+            <h3 className="text-xl font-medium text-gray-900 mb-2">
+              No Branches Available
+            </h3>
+            <p className="text-gray-600 text-base">
+              Please set up branches before registering visitors.
+            </p>
           </CardContent>
         </Card>
       ) : (
@@ -250,13 +303,21 @@ export default function DashboardRegister() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label htmlFor="name" className="text-gray-700 font-medium text-base">
+                    <Label
+                      htmlFor="name"
+                      className="text-gray-700 font-medium text-base"
+                    >
                       Full Name *
                     </Label>
                     <Input
                       id="name"
                       value={formData.name}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          name: e.target.value,
+                        }))
+                      }
                       className="mt-1 h-12 text-base"
                       placeholder="Enter visitor's full name"
                       required
@@ -264,24 +325,34 @@ export default function DashboardRegister() {
                   </div>
 
                   <div>
-                    <Label htmlFor="branch" className="text-gray-700 font-medium text-base">
+                    <Label
+                      htmlFor="branch"
+                      className="text-gray-700 font-medium text-base"
+                    >
                       Branch *
                     </Label>
-                    <Select value={formData.branch_id} onValueChange={handleBranchChange} required>
+                    <Select
+                      value={formData.branch_id}
+                      onValueChange={handleBranchChange}
+                      required
+                    >
                       <SelectTrigger className="mt-1 h-12 text-base">
                         <SelectValue
                           placeholder={
                             branchesLoading
                               ? "Loading branches..."
                               : branches.length === 0
-                                ? "No branches available"
-                                : "Select branch"
+                              ? "No branches available"
+                              : "Select branch"
                           }
                         />
                       </SelectTrigger>
                       <SelectContent>
                         {branches.map((branch) => (
-                          <SelectItem key={branch.id} value={branch.id.toString()}>
+                          <SelectItem
+                            key={branch.id}
+                            value={branch.id.toString()}
+                          >
                             <div className="flex items-center">
                               <Building2 className="h-4 w-4 mr-2" />
                               {branch.name}
@@ -295,12 +366,17 @@ export default function DashboardRegister() {
                   {selectedBranch && (
                     <>
                       <div>
-                        <Label htmlFor="office" className="text-gray-700 font-medium text-base">
+                        <Label
+                          htmlFor="office"
+                          className="text-gray-700 font-medium text-base"
+                        >
                           Office Visited *
                         </Label>
                         <Select
                           value={formData.office}
-                          onValueChange={(value) => setFormData((prev) => ({ ...prev, office: value }))}
+                          onValueChange={(value) =>
+                            setFormData((prev) => ({ ...prev, office: value }))
+                          }
                           required
                         >
                           <SelectTrigger className="mt-1 h-12 text-base">
@@ -319,12 +395,17 @@ export default function DashboardRegister() {
                       </div>
 
                       <div>
-                        <Label htmlFor="reason" className="text-gray-700 font-medium text-base">
+                        <Label
+                          htmlFor="reason"
+                          className="text-gray-700 font-medium text-base"
+                        >
                           Reason for Visit *
                         </Label>
                         <Select
                           value={formData.reason}
-                          onValueChange={(value) => setFormData((prev) => ({ ...prev, reason: value }))}
+                          onValueChange={(value) =>
+                            setFormData((prev) => ({ ...prev, reason: value }))
+                          }
                           required
                         >
                           <SelectTrigger className="mt-1 h-12 text-base">
@@ -360,10 +441,16 @@ export default function DashboardRegister() {
                       id="has_laptop"
                       checked={formData.has_laptop}
                       onCheckedChange={(checked) =>
-                        setFormData((prev) => ({ ...prev, has_laptop: checked as boolean }))
+                        setFormData((prev) => ({
+                          ...prev,
+                          has_laptop: checked as boolean,
+                        }))
                       }
                     />
-                    <Label htmlFor="has_laptop" className="text-gray-700 font-medium text-base">
+                    <Label
+                      htmlFor="has_laptop"
+                      className="text-gray-700 font-medium text-base"
+                    >
                       Carrying a laptop or electronic device
                     </Label>
                   </div>
@@ -371,26 +458,42 @@ export default function DashboardRegister() {
                   {formData.has_laptop && (
                     <div className="grid grid-cols-2 gap-4 mt-4 p-4 bg-blue-50 rounded-lg">
                       <div>
-                        <Label htmlFor="laptop_brand" className="text-gray-700 font-medium text-base">
+                        <Label
+                          htmlFor="laptop_brand"
+                          className="text-gray-700 font-medium text-base"
+                        >
                           Brand *
                         </Label>
                         <Input
                           id="laptop_brand"
                           value={formData.laptop_brand}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, laptop_brand: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              laptop_brand: e.target.value,
+                            }))
+                          }
                           className="mt-1 h-10 text-base"
                           placeholder="e.g., Apple, Dell"
                           required={formData.has_laptop}
                         />
                       </div>
                       <div>
-                        <Label htmlFor="laptop_model" className="text-gray-700 font-medium text-base">
+                        <Label
+                          htmlFor="laptop_model"
+                          className="text-gray-700 font-medium text-base"
+                        >
                           Model *
                         </Label>
                         <Input
                           id="laptop_model"
                           value={formData.laptop_model}
-                          onChange={(e) => setFormData((prev) => ({ ...prev, laptop_model: e.target.value }))}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              laptop_model: e.target.value,
+                            }))
+                          }
                           className="mt-1 h-10 text-base"
                           placeholder="e.g., MacBook Pro"
                           required={formData.has_laptop}
@@ -414,7 +517,9 @@ export default function DashboardRegister() {
                 <CardContent className="space-y-6">
                   {/* Visitor Photo */}
                   <div>
-                    <Label className="text-gray-700 font-medium text-base">Visitor Photo</Label>
+                    <Label className="text-gray-700 font-medium text-base">
+                      Visitor Photo
+                    </Label>
                     <div className="mt-2 space-y-3">
                       <input
                         type="file"
@@ -422,8 +527,8 @@ export default function DashboardRegister() {
                         capture="user"
                         ref={photoRef}
                         onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (file) handleImageCapture(file, setPhoto)
+                          const file = e.target.files?.[0];
+                          if (file) handleImageCapture(file, setPhoto, false);
                         }}
                         className="hidden"
                       />
@@ -453,15 +558,18 @@ export default function DashboardRegister() {
                   {/* ID Photos */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">ID Front</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        ID Front
+                      </Label>
                       <div className="mt-2 space-y-2">
                         <input
                           type="file"
                           accept="image/*"
                           ref={idFrontRef}
                           onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) handleImageCapture(file, setIdPhotoFront)
+                            const file = e.target.files?.[0];
+                            if (file)
+                              handleImageCapture(file, setIdPhotoFront, true);
                           }}
                           className="hidden"
                         />
@@ -485,15 +593,18 @@ export default function DashboardRegister() {
                     </div>
 
                     <div>
-                      <Label className="text-gray-700 font-medium text-base">ID Back</Label>
+                      <Label className="text-gray-700 font-medium text-base">
+                        ID Back
+                      </Label>
                       <div className="mt-2 space-y-2">
                         <input
                           type="file"
                           accept="image/*"
                           ref={idBackRef}
                           onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) handleImageCapture(file, setIdPhotoBack)
+                            const file = e.target.files?.[0];
+                            if (file)
+                              handleImageCapture(file, setIdPhotoBack, true);
                           }}
                           className="hidden"
                         />
@@ -530,21 +641,33 @@ export default function DashboardRegister() {
                     <Clock className="h-6 w-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold text-gray-900">Sign-in Time</h3>
+                    <h3 className="text-xl font-semibold text-gray-900">
+                      Sign-in Time
+                    </h3>
                     {signInTime ? (
                       <div className="flex items-center space-x-2">
-                        <Badge className="bg-green-100 text-green-700 text-sm">Recorded</Badge>
-                        <span className="text-gray-600 text-base">{signInTime}</span>
+                        <Badge className="bg-green-100 text-green-700 text-sm">
+                          Recorded
+                        </Badge>
+                        <span className="text-gray-600 text-base">
+                          {signInTime}
+                        </span>
                       </div>
                     ) : (
-                      <p className="text-gray-600 text-base">Click to record the current time</p>
+                      <p className="text-gray-600 text-base">
+                        Click to record the current time
+                      </p>
                     )}
                   </div>
                 </div>
                 <Button
                   type="button"
                   onClick={recordSignIn}
-                  className={`px-6 py-2 text-base ${signInTime ? "bg-green-600 hover:bg-green-700" : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"}`}
+                  className={`px-6 py-2 text-base ${
+                    signInTime
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                  }`}
                 >
                   {signInTime ? "Time Recorded" : "Record Sign-in"}
                 </Button>
@@ -575,5 +698,5 @@ export default function DashboardRegister() {
         </form>
       )}
     </div>
-  )
+  );
 }

@@ -64,6 +64,7 @@ import Image from "next/image";
 import { AuthGuard } from "@/components/auth-guard";
 import { useRouter } from "next/navigation";
 import { isAuthenticated } from "@/lib/client-auth";
+import { compressVisitorPhoto, compressIdPhoto } from "@/lib/image-compression";
 
 interface OfficeVisit {
   office: string;
@@ -431,12 +432,29 @@ export default function RegisterPage() {
     setIsNewVisitor(true);
   };
 
-  const handleImageCapture = (file: File, setter: (value: string) => void) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setter(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+  const handleImageCapture = async (
+    file: File,
+    setter: (value: string) => void,
+    isIdPhoto: boolean = false
+  ) => {
+    try {
+      // Show loading toast
+      const loadingToast = toast.loading("Optimizing image...");
+
+      // Compress the image based on type
+      const compressedBase64 = isIdPhoto
+        ? await compressIdPhoto(file)
+        : await compressVisitorPhoto(file);
+
+      setter(compressedBase64);
+
+      // Show success toast
+      toast.dismiss(loadingToast);
+      toast.success("Image optimized successfully");
+    } catch (error) {
+      console.error("Error handling image:", error);
+      toast.error("Failed to process image");
+    }
   };
 
   const openImageViewer = (src: string, alt: string) => {
@@ -1473,7 +1491,7 @@ export default function RegisterPage() {
                                   onChange={(e) => {
                                     const file = e.target.files?.[0];
                                     if (file)
-                                      handleImageCapture(file, setPhoto);
+                                      handleImageCapture(file, setPhoto, false);
                                   }}
                                   className="hidden"
                                 />
@@ -1528,7 +1546,8 @@ export default function RegisterPage() {
                                       if (file)
                                         handleImageCapture(
                                           file,
-                                          setIdPhotoFront
+                                          setIdPhotoFront,
+                                          true
                                         );
                                     }}
                                     className="hidden"
@@ -1578,7 +1597,8 @@ export default function RegisterPage() {
                                       if (file)
                                         handleImageCapture(
                                           file,
-                                          setIdPhotoBack
+                                          setIdPhotoBack,
+                                          true
                                         );
                                     }}
                                     className="hidden"
