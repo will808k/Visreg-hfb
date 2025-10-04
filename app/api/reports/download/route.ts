@@ -32,6 +32,8 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const vendor = searchParams.get("vendor") || "all";
     const date = searchParams.get("date");
+    const fromDate = searchParams.get("fromDate");
+    const toDate = searchParams.get("toDate");
 
     // Verify authentication
     const authHeader = request.headers.get("authorization");
@@ -100,6 +102,16 @@ export async function GET(request: NextRequest) {
       params.push(date);
     }
 
+    if (fromDate) {
+      query += " AND DATE(vt.sign_in_time) >= ?";
+      params.push(fromDate);
+    }
+
+    if (toDate) {
+      query += " AND DATE(vt.sign_in_time) <= ?";
+      params.push(toDate);
+    }
+
     query += " ORDER BY vt.sign_in_time DESC";
 
     const [rows] = (await pool.execute(query, params)) as [VisitData[], any];
@@ -133,7 +145,12 @@ export async function GET(request: NextRequest) {
       "Signed Out By": row.signedout_by_name || "N/A",
     }));
 
-    const dateStr = date && date !== "all" ? date : "all-dates";
+    let dateStr = "all-dates";
+    if (fromDate && toDate) {
+      dateStr = `${fromDate}-to-${toDate}`;
+    } else if (date && date !== "all") {
+      dateStr = date;
+    }
     const filename = `visitor-report-${dateStr}`;
 
     if (format === "csv") {
@@ -161,7 +178,9 @@ export async function GET(request: NextRequest) {
 
       doc.setFontSize(10);
       doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 25);
-      if (date && date !== "all") {
+      if (fromDate && toDate) {
+        doc.text(`Date Range: ${fromDate} to ${toDate}`, 14, 32);
+      } else if (date && date !== "all") {
         doc.text(`Date Filter: ${date}`, 14, 32);
       }
 

@@ -81,6 +81,7 @@ interface Branch {
 
 interface Visitor {
   id: number;
+  visitId: number; // Add visit ID for photo API calls
   digital_card_no: string;
   name: string;
   phone_number: string;
@@ -350,6 +351,7 @@ export default function DashboardRegister() {
     if (visitor) {
       const visitorDetails: Visitor = {
         id: visitor.visitor_id,
+        visitId: visit.id, // Add visit ID for photo API calls
         digital_card_no: visit.digital_card_no,
         name: visitor.name,
         phone_number: visitor.phone_number,
@@ -2144,7 +2146,7 @@ export default function DashboardRegister() {
                     {/* Only show photo indicators for photos that exist */}
                     {selectedVisitorDetails.photo && (
                       <PhotoIndicator
-                        visitorId={selectedVisitorDetails.id}
+                        visitorId={selectedVisitorDetails.visitId}
                         photoType="photo"
                         label="Visitor Photo"
                       />
@@ -2152,7 +2154,7 @@ export default function DashboardRegister() {
 
                     {selectedVisitorDetails.id_photo_front && (
                       <PhotoIndicator
-                        visitorId={selectedVisitorDetails.id}
+                        visitorId={selectedVisitorDetails.visitId}
                         photoType="id_front"
                         label="ID Front"
                       />
@@ -2160,7 +2162,7 @@ export default function DashboardRegister() {
 
                     {selectedVisitorDetails.id_photo_back && (
                       <PhotoIndicator
-                        visitorId={selectedVisitorDetails.id}
+                        visitorId={selectedVisitorDetails.visitId}
                         photoType="id_back"
                         label="ID Back"
                       />

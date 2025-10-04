@@ -904,7 +904,7 @@ export default function VisitorDetailsPage({
                   {(selectedVisit?.photo === "exists" ||
                     selectedVisit?.photo) && (
                     <PhotoIndicator
-                      visitorId={parseInt(resolvedParams.id)}
+                      visitorId={selectedVisit.id}
                       photoType="photo"
                       label="Visitor Photo"
                     />
@@ -912,7 +912,7 @@ export default function VisitorDetailsPage({
                   {(selectedVisit?.id_photo_front === "exists" ||
                     selectedVisit?.id_photo_front) && (
                     <PhotoIndicator
-                      visitorId={parseInt(resolvedParams.id)}
+                      visitorId={selectedVisit.id}
                       photoType="id_front"
                       label="ID Photo (Front)"
                     />
@@ -920,7 +920,7 @@ export default function VisitorDetailsPage({
                   {(selectedVisit?.id_photo_back === "exists" ||
                     selectedVisit?.id_photo_back) && (
                     <PhotoIndicator
-                      visitorId={parseInt(resolvedParams.id)}
+                      visitorId={selectedVisit.id}
                       photoType="id_back"
                       label="ID Photo (Back)"
                     />
@@ -928,7 +928,7 @@ export default function VisitorDetailsPage({
                   {(selectedVisit?.signature === "exists" ||
                     selectedVisit?.signature) && (
                     <PhotoIndicator
-                      visitorId={parseInt(resolvedParams.id)}
+                      visitorId={selectedVisit.id}
                       photoType="signature"
                       label="Signature"
                     />

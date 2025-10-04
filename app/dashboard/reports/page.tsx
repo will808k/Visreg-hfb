@@ -240,12 +240,19 @@ export default function ReportsPage() {
       const dateString = selectedDate
         ? selectedDate.toISOString().split("T")[0]
         : "";
+      const fromDateString = fromDate
+        ? fromDate.toISOString().split("T")[0]
+        : "";
+      const toDateString = toDate ? toDate.toISOString().split("T")[0] : "";
 
       const queryParams = new URLSearchParams({
         format,
         search: searchTerm,
         vendor: vendorFilter,
-        ...(dateString && { date: dateString }),
+        ...(dateString && !isDateRangeActive && { date: dateString }),
+        ...(isDateRangeActive &&
+          fromDateString && { fromDate: fromDateString }),
+        ...(isDateRangeActive && toDateString && { toDate: toDateString }),
       });
 
       const response = await fetch(`/api/reports/download?${queryParams}`, {
@@ -259,9 +266,20 @@ export default function ReportsPage() {
       }
 
       const contentDisposition = response.headers.get("content-disposition");
-      const filename = contentDisposition
+      let filename = contentDisposition
         ? contentDisposition.split("filename=")[1]?.replace(/"/g, "")
-        : `visitor-report-${dateString || "all"}.${format}`;
+        : null;
+
+      // Generate filename based on current filters if not provided by server
+      if (!filename) {
+        if (isDateRangeActive && fromDate && toDate) {
+          filename = `visitor-report-${fromDateString}-to-${toDateString}.${format}`;
+        } else if (dateString) {
+          filename = `visitor-report-${dateString}.${format}`;
+        } else {
+          filename = `visitor-report-all.${format}`;
+        }
+      }
 
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
@@ -273,8 +291,16 @@ export default function ReportsPage() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
+      // Show success message with filter details
+      let filterMessage = "";
+      if (isDateRangeActive && fromDate && toDate) {
+        filterMessage = ` for ${fromDate.toLocaleDateString()} - ${toDate.toLocaleDateString()}`;
+      } else if (dateString) {
+        filterMessage = ` for ${new Date(dateString).toLocaleDateString()}`;
+      }
+
       toast.success(
-        `Report downloaded successfully as ${format.toUpperCase()}`
+        `Report downloaded successfully as ${format.toUpperCase()}${filterMessage}`
       );
     } catch (error) {
       console.error("Error downloading report:", error);
