@@ -119,6 +119,11 @@ interface ExistingVisitor {
     is_vendor: boolean;
     company?: string;
     person_in_charge?: string;
+    photo?: string;
+    id_photo_front?: string;
+    id_photo_back?: string;
+    other_items?: string[];
+    visitee_name?: string;
     category?: string;
   } | null;
 }
@@ -508,9 +513,24 @@ export default function DashboardRegister() {
       {
         office: visitor.last_visit_details?.office || "",
         reason: visitor.last_visit_details?.reason || "",
-        visitee_name: "",
+        visitee_name: visitor.last_visit_details?.visitee_name || "",
       },
     ]);
+
+    // Pre-populate photo fields from last visit
+    // Ensure photo data is in proper data URL format for the registration API
+    const formatPhotoData = (photoData: string | undefined) => {
+      if (!photoData) return null;
+      return photoData.startsWith("data:")
+        ? photoData
+        : `data:image/jpeg;base64,${photoData}`;
+    };
+
+    setPhoto(formatPhotoData(visitor.last_visit_details?.photo));
+    setIdPhotoFront(
+      formatPhotoData(visitor.last_visit_details?.id_photo_front)
+    );
+    setIdPhotoBack(formatPhotoData(visitor.last_visit_details?.id_photo_back));
   };
 
   const handleCategorySelect = (category: string) => {
