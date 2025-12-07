@@ -40,13 +40,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Calendar } from "@/components/ui/calendar";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Download, FileText, CalendarIcon } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import toast from "react-hot-toast";
 
 interface LoginLog {
@@ -88,7 +82,6 @@ export default function LoginLogsPage() {
     year: "",
   });
   const [isDownloading, setIsDownloading] = useState(false);
-  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const fetchLogs = async () => {
     try {
@@ -411,51 +404,62 @@ export default function LoginLogsPage() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">
-                Date Range
+                Date Range (From)
               </label>
-              <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start text-left font-normal"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {filters.dateRange.from ? (
-                      filters.dateRange.to ? (
-                        <>
-                          {format(filters.dateRange.from, "LLL dd, y")} -{" "}
-                          {format(filters.dateRange.to, "LLL dd, y")}
-                        </>
-                      ) : (
-                        format(filters.dateRange.from, "LLL dd, y")
-                      )
-                    ) : (
-                      <span>Pick a date range</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    initialFocus
-                    mode="range"
-                    defaultMonth={filters.dateRange.from}
-                    selected={filters.dateRange}
-                    onSelect={(range) => {
-                      setFilters((prev) => ({
-                        ...prev,
-                        dateRange: {
-                          from: range?.from || undefined,
-                          to: range?.to || undefined,
-                        },
-                        month: "",
-                        year: "",
-                      }));
-                      setDatePickerOpen(false);
-                    }}
-                    numberOfMonths={2}
-                  />
-                </PopoverContent>
-              </Popover>
+              <Input
+                type="date"
+                value={
+                  filters.dateRange.from
+                    ? filters.dateRange.from.toISOString().split("T")[0]
+                    : ""
+                }
+                onChange={(e) => {
+                  const date = e.target.value
+                    ? new Date(e.target.value)
+                    : undefined;
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateRange: {
+                      from: date,
+                      to: prev.dateRange.to,
+                    },
+                    month: "",
+                    year: "",
+                  }));
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Date Range (To)
+              </label>
+              <Input
+                type="date"
+                value={
+                  filters.dateRange.to
+                    ? filters.dateRange.to.toISOString().split("T")[0]
+                    : ""
+                }
+                onChange={(e) => {
+                  const date = e.target.value
+                    ? new Date(e.target.value)
+                    : undefined;
+                  setFilters((prev) => ({
+                    ...prev,
+                    dateRange: {
+                      from: prev.dateRange.from,
+                      to: date,
+                    },
+                    month: "",
+                    year: "",
+                  }));
+                }}
+                min={
+                  filters.dateRange.from
+                    ? filters.dateRange.from.toISOString().split("T")[0]
+                    : undefined
+                }
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Month</label>

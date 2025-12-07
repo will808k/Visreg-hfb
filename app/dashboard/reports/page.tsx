@@ -27,13 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { PhotoIndicator } from "@/components/photo-indicator";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import {
   Search,
   Eye,
@@ -53,9 +47,9 @@ import {
   Clock,
   Download,
   FileText,
-  CalendarIcon,
   X,
   Loader2,
+  CheckCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
@@ -80,6 +74,7 @@ interface Visitor {
   last_visit: string;
   total_visits: number;
   phone_number?: string;
+  residence?: string;
   last_visit_details?: {
     id: number;
     digital_card_no: string | null;
@@ -102,6 +97,7 @@ interface Visitor {
     status: "active" | "completed";
     other_items: string[] | null;
     visitee_name: string | null;
+    leftwithdevice?: string | null; // JSON string of items left with visitor
   } | null;
 }
 
@@ -136,6 +132,7 @@ export default function ReportsPage() {
   const [selectedVisitDetails, setSelectedVisitDetails] = useState<
     Visitor["last_visit_details"] | null
   >(null);
+  const [selectedVisitorResidence, setSelectedVisitorResidence] = useState<string | undefined>(undefined);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
   const router = useRouter();
   const [vendorFilter, setVendorFilter] = useState<string>("all");
@@ -427,6 +424,7 @@ export default function ReportsPage() {
 
   const handleExpandDetails = (visitor: Visitor) => {
     setSelectedVisitDetails(visitor.last_visit_details);
+    setSelectedVisitorResidence(visitor.residence);
     setIsDetailsDialogOpen(true);
   };
 
@@ -625,100 +623,68 @@ export default function ReportsPage() {
             <div className="flex space-x-2">
               {/* Date Range Pickers */}
               <div className="flex space-x-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-[140px] justify-start text-left font-normal text-sm",
-                        !fromDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {fromDate ? (
-                        fromDate.toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })
-                      ) : (
-                        <span>From</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={fromDate}
-                      onSelect={handleFromDateChange}
-                      initialFocus
-                      disabled={(date) => (toDate ? date > toDate : false)}
-                    />
-                  </PopoverContent>
-                </Popover>
+                <div>
+                  <Input
+                    type="date"
+                    placeholder="From"
+                    value={
+                      fromDate
+                        ? fromDate.toISOString().split("T")[0]
+                        : ""
+                    }
+                    onChange={(e) => {
+                      const date = e.target.value
+                        ? new Date(e.target.value)
+                        : undefined;
+                      handleFromDateChange(date);
+                    }}
+                    max={
+                      toDate ? toDate.toISOString().split("T")[0] : undefined
+                    }
+                    className="w-[140px]"
+                  />
+                </div>
 
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-[140px] justify-start text-left font-normal text-sm",
-                        !toDate && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {toDate ? (
-                        toDate.toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })
-                      ) : (
-                        <span>To</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <CalendarComponent
-                      mode="single"
-                      selected={toDate}
-                      onSelect={handleToDateChange}
-                      initialFocus
-                      disabled={(date) => (fromDate ? date < fromDate : false)}
-                    />
-                  </PopoverContent>
-                </Popover>
+                <div>
+                  <Input
+                    type="date"
+                    placeholder="To"
+                    value={toDate ? toDate.toISOString().split("T")[0] : ""}
+                    onChange={(e) => {
+                      const date = e.target.value
+                        ? new Date(e.target.value)
+                        : undefined;
+                      handleToDateChange(date);
+                    }}
+                    min={
+                      fromDate
+                        ? fromDate.toISOString().split("T")[0]
+                        : undefined
+                    }
+                    className="w-[140px]"
+                  />
+                </div>
               </div>
 
               {/* Single Date Picker */}
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-[180px] justify-start text-left font-normal text-sm",
-                      !selectedDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? (
-                      selectedDate.toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })
-                    ) : (
-                      <span>Specific Date</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={handleSingleDateChange}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <div>
+                <Input
+                  type="date"
+                  placeholder="Specific Date"
+                  value={
+                    selectedDate
+                      ? selectedDate.toISOString().split("T")[0]
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const date = e.target.value
+                      ? new Date(e.target.value)
+                      : undefined;
+                    handleSingleDateChange(date);
+                  }}
+                  className="w-[180px]"
+                />
+              </div>
 
               <Select value={vendorFilter} onValueChange={setVendorFilter}>
                 <SelectTrigger className="w-48">
@@ -774,6 +740,7 @@ export default function ReportsPage() {
                   <TableHead className="text-center">
                     Number of Visits
                   </TableHead>
+                  <TableHead>Place of Residence</TableHead>
                   <TableHead>Last Visit Date</TableHead>
                   <TableHead>Details</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -782,7 +749,7 @@ export default function ReportsPage() {
               <TableBody>
                 {visitors.length === 0 ? (
                   <TableRow className="border-b">
-                    <TableCell colSpan={5} className="text-center py-8">
+                    <TableCell colSpan={6} className="text-center py-8">
                       {searchTerm || selectedDate || vendorFilter !== "all"
                         ? "No visitors found matching your criteria."
                         : "No visitors found."}
@@ -806,6 +773,14 @@ export default function ReportsPage() {
                         <Badge variant="secondary" className="font-mono">
                           {visitor.visit_count}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-1">
+                          <MapPin className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-sm">
+                            {visitor.residence || "Not provided"}
+                          </span>
+                        </div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-1">
@@ -917,7 +892,16 @@ export default function ReportsPage() {
       </Card>
 
       {/* Visit Details Dialog */}
-      <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+      <Dialog
+        open={isDetailsDialogOpen}
+        onOpenChange={(open) => {
+          setIsDetailsDialogOpen(open);
+          if (!open) {
+            setSelectedVisitDetails(null);
+            setSelectedVisitorResidence(undefined);
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-2xl font-bold text-gray-900">
@@ -1053,6 +1037,17 @@ export default function ReportsPage() {
                         </div>
                       </div>
                     )}
+                    {selectedVisitorResidence && (
+                      <div>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Place of Residence
+                        </Label>
+                        <div className="text-base flex items-center mt-1">
+                          <MapPin className="h-4 w-4 mr-2 text-gray-400" />
+                          {selectedVisitorResidence}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -1110,6 +1105,68 @@ export default function ReportsPage() {
                             {item}
                           </Badge>
                         ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+              {/* Items Clearance (Left With Items) */}
+              {selectedVisitDetails.sign_out_time &&
+                selectedVisitDetails.leftwithdevice && (
+                  <Card className="modern-shadow border-0">
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-xl">
+                        <CheckCircle className="h-5 w-5 mr-2 text-green-600" />
+                        Items Clearance
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Items the visitor left with upon sign-out:
+                      </p>
+                      <div className="space-y-3">
+                        {(() => {
+                          try {
+                            const leftWithItems = JSON.parse(
+                              selectedVisitDetails.leftwithdevice
+                            );
+                            return Object.entries(leftWithItems).map(
+                              ([item, leftWith]) => (
+                                <div
+                                  key={item}
+                                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <Package className="h-4 w-4 text-gray-600" />
+                                    <span className="font-medium text-gray-900">
+                                      {item.replace(/^laptop_/, "").replace(/_/g, " ")}
+                                    </span>
+                                  </div>
+                                  <Badge
+                                    variant={
+                                      leftWith === true
+                                        ? "default"
+                                        : "secondary"
+                                    }
+                                    className={
+                                      leftWith === true
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-red-100 text-red-700"
+                                    }
+                                  >
+                                    {leftWith === true ? "Yes" : "No"}
+                                  </Badge>
+                                </div>
+                              )
+                            );
+                          } catch (e) {
+                            return (
+                              <p className="text-sm text-gray-500">
+                                Unable to parse clearance data
+                              </p>
+                            );
+                          }
+                        })()}
                       </div>
                     </CardContent>
                   </Card>
@@ -1207,7 +1264,11 @@ export default function ReportsPage() {
               <div className="flex justify-end space-x-3 pt-4 border-t">
                 <Button
                   variant="outline"
-                  onClick={() => setIsDetailsDialogOpen(false)}
+                  onClick={() => {
+                    setIsDetailsDialogOpen(false);
+                    setSelectedVisitDetails(null);
+                    setSelectedVisitorResidence(undefined);
+                  }}
                 >
                   Close
                 </Button>

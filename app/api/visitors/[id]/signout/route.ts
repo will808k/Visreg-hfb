@@ -20,6 +20,10 @@ export async function PATCH(
     const { id } = await params;
     const visitId = id;
 
+    // Get request body for leftwithdevice data
+    const body = await request.json().catch(() => ({}));
+    const leftwithdevice = body.leftwithdevice || null;
+
     // Check if visit exists and is not already signed out
     const [visitCheck] = await pool.execute(
       "SELECT id, sign_out_time FROM visits WHERE id = ?",
@@ -38,10 +42,10 @@ export async function PATCH(
       );
     }
 
-    // Update the visit with sign out time and signed out by user
+    // Update the visit with sign out time, signed out by user, and leftwithdevice
     await pool.execute(
-      "UPDATE visits SET sign_out_time = NOW(), signedout_by = ? WHERE id = ?",
-      [decoded.userId, visitId]
+      "UPDATE visits SET sign_out_time = NOW(), signedout_by = ?, leftwithdevice = ? WHERE id = ?",
+      [decoded.userId, leftwithdevice, visitId]
     );
 
     return NextResponse.json({

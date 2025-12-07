@@ -75,6 +75,7 @@ export async function GET(request: NextRequest) {
         v.has_laptop,
         v.laptop_brand,
         v.laptop_model,
+        v.leftwithdevice,
         ${imageColumns}
         v.company,
         v.person_in_charge,
@@ -82,6 +83,7 @@ export async function GET(request: NextRequest) {
         v.visitee_name,
         vis.name,
         vis.phone_number,
+        vis.residence,
         vis.visits as total_visits,
         b.name as branch_name,
         u.name as registered_by_name,
@@ -147,6 +149,7 @@ export async function GET(request: NextRequest) {
         company: visit.company || undefined,
         person_in_charge: visit.person_in_charge || undefined,
         other_items: otherItems,
+        leftwithdevice: visit.leftwithdevice || undefined,
       };
 
       if (visitorsMap.has(visit.visitor_id)) {
@@ -164,6 +167,7 @@ export async function GET(request: NextRequest) {
           visitor_id: visit.visitor_id,
           name: visit.name,
           phone_number: visit.phone_number,
+          residence: visit.residence || undefined,
           photo: photoBase64 || undefined,
           id_photo_front: idFrontBase64 || undefined,
           id_photo_back: idBackBase64 || undefined,

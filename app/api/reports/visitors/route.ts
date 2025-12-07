@@ -44,6 +44,7 @@ export async function GET(request: NextRequest) {
       vis.id,
       vis.name,
       vis.phone_number,
+      vis.residence,
       vis.visits as visit_count,
       vis.created_at,
       vis.updated_at as last_visit
@@ -79,6 +80,7 @@ export async function GET(request: NextRequest) {
         v.laptop_model,
         v.company,
         v.person_in_charge,
+        v.leftwithdevice,
         ${
           includeImages
             ? "v.photo, v.id_photo_front, v.id_photo_back, v.signature,"
@@ -142,6 +144,7 @@ export async function GET(request: NextRequest) {
             'sign_out_time', v2.sign_out_time,
             'other_items', v2.other_items,
             'visitee_name', v2.visitee_name,
+            'leftwithdevice', v2.leftwithdevice,
             'duration_minutes', CASE 
               WHEN v2.sign_out_time IS NOT NULL 
               THEN TIMESTAMPDIFF(MINUTE, v2.sign_in_time, v2.sign_out_time)
@@ -272,6 +275,7 @@ export async function GET(request: NextRequest) {
             ? JSON.parse(visitor.other_items)
             : null,
           visitee_name: visitor.visitee_name,
+          leftwithdevice: visitor.leftwithdevice || null,
           duration_minutes: visitor.duration_minutes,
           branch_name: visitor.branch_name,
           registered_by_name: visitor.registered_by_name,
@@ -296,6 +300,7 @@ export async function GET(request: NextRequest) {
         id: visitor.id,
         name: visitor.name,
         phone_number: visitor.phone_number,
+        residence: visitor.residence || undefined,
         visit_count: visitor.visit_count || 0,
         last_visit: visitor.last_visit || visitor.created_at,
         total_visits: visitor.visit_count || 0,

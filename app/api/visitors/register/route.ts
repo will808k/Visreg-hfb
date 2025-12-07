@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
     const {
       name,
       phone_number,
+      residence,
       office_visits = [], // Array of {office, reason, visitee_name}
       reason,
       office,
@@ -136,13 +137,13 @@ export async function POST(request: NextRequest) {
       if ((existingVisitor as VisitorRow[]).length > 0) {
         finalVisitorId = (existingVisitor as VisitorRow[])[0].id;
         await pool.execute(
-          "UPDATE visitors SET name = ?, visits = visits + ? WHERE id = ?",
-          [name, finalOfficeVisits.length, finalVisitorId]
+          "UPDATE visitors SET name = ?, visits = visits + ?, residence = ? WHERE id = ?",
+          [name, finalOfficeVisits.length, residence || null, finalVisitorId]
         );
       } else {
         const [visitorResult] = (await pool.execute(
-          "INSERT INTO visitors (name, phone_number, visits) VALUES (?, ?, ?)",
-          [name, phone_number, finalOfficeVisits.length]
+          "INSERT INTO visitors (name, phone_number, visits, residence) VALUES (?, ?, ?, ?)",
+          [name, phone_number, finalOfficeVisits.length, residence || null]
         )) as [DatabaseResult, any];
         finalVisitorId = visitorResult.insertId;
       }
@@ -155,8 +156,8 @@ export async function POST(request: NextRequest) {
       }
       finalVisitorId = visitor_id;
       await pool.execute(
-        "UPDATE visitors SET visits = visits + ?, phone_number = ? WHERE id = ?",
-        [finalOfficeVisits.length, phone_number, finalVisitorId]
+        "UPDATE visitors SET visits = visits + ?, phone_number = ?, residence = ? WHERE id = ?",
+        [finalOfficeVisits.length, phone_number, residence || null, finalVisitorId]
       );
     }
 

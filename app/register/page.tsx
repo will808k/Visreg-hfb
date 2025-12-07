@@ -85,6 +85,7 @@ interface Visitor {
   digital_card_no: string;
   name: string;
   phone_number: string;
+  residence?: string;
   reason: string;
   office: string;
   sign_in_time: string;
@@ -102,12 +103,14 @@ interface Visitor {
   id_photo_back?: string;
   company?: string;
   person_in_charge?: string;
+  leftwithdevice?: string; // JSON string of items left with visitor
 }
 
 interface ExistingVisitor {
   id: number;
   name: string;
   phone_number: string;
+  residence?: string;
   visits: number;
   last_visit: string;
   last_visit_details: {
@@ -132,6 +135,7 @@ interface GroupedVisitor {
   visitor_id: number;
   name: string;
   phone_number: string;
+  residence?: string;
   photo?: string;
   id_photo_front?: string;
   id_photo_back?: string;
@@ -157,6 +161,7 @@ interface VisitDetails {
   company?: string;
   person_in_charge?: string;
   other_items?: string[];
+  leftwithdevice?: string; // JSON string of items left with visitor
 }
 
 export default function RegisterPage() {
@@ -183,12 +188,17 @@ export default function RegisterPage() {
   const [signingOutVisitorId, setSigningOutVisitorId] = useState<number | null>(
     null
   );
+  const [isLeftWithItemsDialogOpen, setIsLeftWithItemsDialogOpen] = useState(false);
+  const [pendingSignOutVisitId, setPendingSignOutVisitId] = useState<number | null>(null);
+  const [pendingSignOutVisit, setPendingSignOutVisit] = useState<VisitDetails | null>(null);
+  const [leftWithItems, setLeftWithItems] = useState<Record<string, boolean>>({});
 
   const [selectedCategory, setSelectedCategory] = useState<string>("");
 
   const [formData, setFormData] = useState({
     name: "",
     phone_number: "",
+    residence: "",
     has_laptop: false,
     laptop_brand: "",
     laptop_model: "",
@@ -320,6 +330,7 @@ export default function RegisterPage() {
     setFormData({
       name: "",
       phone_number: "",
+      residence: "",
       has_laptop: false,
       laptop_brand: "",
       laptop_model: "",
@@ -392,6 +403,7 @@ export default function RegisterPage() {
     setFormData({
       name: visitor.name,
       phone_number: visitor.phone_number,
+      residence: visitor.residence || "", // Auto-populate from visitor data
       has_laptop: visitor.last_visit_details?.has_laptop || false,
       laptop_brand: visitor.last_visit_details?.laptop_brand || "",
       laptop_model: visitor.last_visit_details?.laptop_model || "",
@@ -575,6 +587,7 @@ export default function RegisterPage() {
         digital_card_no: visit.digital_card_no,
         name: visitor.name,
         phone_number: visitor.phone_number,
+        residence: (visitor as GroupedVisitor).residence || undefined,
         reason: visit.reason,
         office: visit.office,
         sign_in_time: visit.sign_in_time,
@@ -592,19 +605,63 @@ export default function RegisterPage() {
         id_photo_back: visitor.id_photo_back || undefined,
         company: visit.company || undefined,
         person_in_charge: visit.person_in_charge || undefined,
+        leftwithdevice: visit.leftwithdevice || undefined,
       });
       setIsDetailsDialogOpen(true);
     }
   };
 
   const handleSignOutSingle = async (visitId: number) => {
+    // Find the visit details to check for equipment/items
+    let visitDetails: VisitDetails | null = null;
+    for (const visitor of visitors) {
+      const visit = visitor.visits.find((v) => v.id === visitId);
+      if (visit) {
+        visitDetails = visit;
+        break;
+      }
+    }
+
+    // Check if visitor has equipment or other items
+    if (visitDetails && (visitDetails.has_laptop || (visitDetails.other_items && visitDetails.other_items.length > 0))) {
+      // Show dialog to confirm what items they left with
+      setPendingSignOutVisitId(visitId);
+      setPendingSignOutVisit(visitDetails);
+      
+      // Initialize leftWithItems state
+      const items: Record<string, boolean> = {};
+      if (visitDetails.has_laptop) {
+        items[`laptop_${visitDetails.laptop_brand || ''}_${visitDetails.laptop_model || ''}`] = false;
+      }
+      if (visitDetails.other_items) {
+        visitDetails.other_items.forEach((item) => {
+          items[item] = false;
+        });
+      }
+      setLeftWithItems(items);
+      setIsLeftWithItemsDialogOpen(true);
+      return;
+    }
+
+    // No equipment/items, proceed with normal sign out
+    await performSignOut(visitId, null);
+  };
+
+  const performSignOut = async (visitId: number, leftWithItemsData: Record<string, boolean> | null) => {
     setSigningOutVisitId(visitId);
     try {
+      const body: any = {};
+      if (leftWithItemsData) {
+        body.leftwithdevice = JSON.stringify(leftWithItemsData);
+      }
+
       const response = await fetch(`/api/visitors/${visitId}/signout`, {
         method: "PATCH",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
         },
+        body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
       });
 
       if (response.ok) {
@@ -623,6 +680,16 @@ export default function RegisterPage() {
       await refreshVisitors();
     } finally {
       setSigningOutVisitId(null);
+      setIsLeftWithItemsDialogOpen(false);
+      setPendingSignOutVisitId(null);
+      setPendingSignOutVisit(null);
+      setLeftWithItems({});
+    }
+  };
+
+  const handleConfirmLeftWithItems = () => {
+    if (pendingSignOutVisitId) {
+      performSignOut(pendingSignOutVisitId, leftWithItems);
     }
   };
 
@@ -648,6 +715,7 @@ export default function RegisterPage() {
     setFormData({
       name: "",
       phone_number: "",
+      residence: "",
       has_laptop: false,
       laptop_brand: "",
       laptop_model: "",
@@ -975,6 +1043,28 @@ export default function RegisterPage() {
                                 }
                                 className="mt-1 h-12 text-base"
                                 placeholder="Enter visitor's phone number"
+                                required
+                              />
+                            </div>
+
+                            <div>
+                              <Label
+                                htmlFor="residence"
+                                className="text-gray-700 font-medium text-base"
+                              >
+                                Place of Residence *
+                              </Label>
+                              <Input
+                                id="residence"
+                                value={formData.residence}
+                                onChange={(e) =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    residence: e.target.value,
+                                  }))
+                                }
+                                className="mt-1 h-12 text-base"
+                                placeholder="Enter place of residence"
                                 required
                               />
                             </div>
@@ -2184,6 +2274,15 @@ export default function RegisterPage() {
                         </div>
                         <div>
                           <Label className="text-sm font-medium text-gray-500">
+                            Place of Residence
+                          </Label>
+                          <p className="text-base">
+                            {selectedVisitorDetails.residence ||
+                              "Not provided"}
+                          </p>
+                        </div>
+                        <div>
+                          <Label className="text-sm font-medium text-gray-500">
                             Branch
                           </Label>
                           <p className="text-base">
@@ -2351,6 +2450,68 @@ export default function RegisterPage() {
                     </CardContent>
                   </Card>
 
+                  {/* Items Clearance (Left With Items) */}
+                  {selectedVisitorDetails.sign_out_time &&
+                    selectedVisitorDetails.leftwithdevice && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center text-lg">
+                            <CheckCircle className="h-5 w-5 mr-2 text-green-600" />
+                            Items Clearance
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-sm text-gray-600 mb-4">
+                            Items the visitor left with upon sign-out:
+                          </p>
+                          <div className="space-y-3">
+                            {(() => {
+                              try {
+                                const leftWithItems = JSON.parse(
+                                  selectedVisitorDetails.leftwithdevice
+                                );
+                                return Object.entries(leftWithItems).map(
+                                  ([item, leftWith]) => (
+                                    <div
+                                      key={item}
+                                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                    >
+                                      <div className="flex items-center space-x-2">
+                                        <Package className="h-4 w-4 text-gray-600" />
+                                        <span className="font-medium text-gray-900">
+                                          {item.replace(/^laptop_/, "").replace(/_/g, " ")}
+                                        </span>
+                                      </div>
+                                      <Badge
+                                        variant={
+                                          leftWith === true
+                                            ? "default"
+                                            : "secondary"
+                                        }
+                                        className={
+                                          leftWith === true
+                                            ? "bg-green-100 text-green-700"
+                                            : "bg-red-100 text-red-700"
+                                        }
+                                      >
+                                        {leftWith === true ? "Yes" : "No"}
+                                      </Badge>
+                                    </div>
+                                  )
+                                );
+                              } catch (e) {
+                                return (
+                                  <p className="text-sm text-gray-500">
+                                    Unable to parse clearance data
+                                  </p>
+                                );
+                              }
+                            })()}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
                   {/* Vendor Information */}
                   {(selectedVisitorDetails.company ||
                     selectedVisitorDetails.person_in_charge) && (
@@ -2491,6 +2652,173 @@ export default function RegisterPage() {
                           : "Sign Out Visitor"}
                       </Button>
                     )}
+                  </div>
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          {/* Left With Items Dialog */}
+          <Dialog
+            open={isLeftWithItemsDialogOpen}
+            onOpenChange={setIsLeftWithItemsDialogOpen}
+          >
+            <DialogContent className="max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="text-2xl font-bold text-gray-900">
+                  Confirm Items Left With Visitor
+                </DialogTitle>
+              </DialogHeader>
+              {pendingSignOutVisit && (
+                <div className="space-y-4">
+                  <p className="text-gray-600">
+                    Please confirm which items the visitor left with. This helps
+                    maintain accountability for equipment and items.
+                  </p>
+                  <div className="space-y-3">
+                    {pendingSignOutVisit.has_laptop && (
+                      <Card className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center space-x-3">
+                            <Laptop className="h-5 w-5 text-blue-600" />
+                            <div>
+                              <p className="font-medium text-gray-900">
+                                Laptop/Electronic Device
+                              </p>
+                              {pendingSignOutVisit.laptop_brand && (
+                                <p className="text-sm text-gray-600">
+                                  {pendingSignOutVisit.laptop_brand}{" "}
+                                  {pendingSignOutVisit.laptop_model}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-4">
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="laptop-yes"
+                                checked={
+                                  leftWithItems[
+                                    `laptop_${pendingSignOutVisit.laptop_brand || ''}_${pendingSignOutVisit.laptop_model || ''}`
+                                  ] === true
+                                }
+                                onCheckedChange={(checked) => {
+                                  setLeftWithItems((prev) => ({
+                                    ...prev,
+                                    [`laptop_${pendingSignOutVisit.laptop_brand || ''}_${pendingSignOutVisit.laptop_model || ''}`]:
+                                      checked === true,
+                                  }));
+                                }}
+                              />
+                              <Label htmlFor="laptop-yes" className="cursor-pointer">
+                                Yes
+                              </Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox
+                                id="laptop-no"
+                                checked={
+                                  leftWithItems[
+                                    `laptop_${pendingSignOutVisit.laptop_brand || ''}_${pendingSignOutVisit.laptop_model || ''}`
+                                  ] === false
+                                }
+                                onCheckedChange={(checked) => {
+                                  const key = `laptop_${pendingSignOutVisit.laptop_brand || ''}_${pendingSignOutVisit.laptop_model || ''}`;
+                                  setLeftWithItems((prev) => {
+                                    const newState = { ...prev };
+                                    if (checked === false) {
+                                      newState[key] = false;
+                                    } else {
+                                      delete newState[key];
+                                    }
+                                    return newState;
+                                  });
+                                }}
+                              />
+                              <Label htmlFor="laptop-no" className="cursor-pointer">
+                                No
+                              </Label>
+                            </div>
+                          </div>
+                        </div>
+                      </Card>
+                    )}
+
+                    {pendingSignOutVisit.other_items &&
+                      pendingSignOutVisit.other_items.length > 0 &&
+                      pendingSignOutVisit.other_items.map((item, index) => (
+                        <Card key={index} className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <Package className="h-5 w-5 text-purple-600" />
+                              <p className="font-medium text-gray-900">{item}</p>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`item-${index}-yes`}
+                                  checked={leftWithItems[item] === true}
+                                  onCheckedChange={(checked) => {
+                                    setLeftWithItems((prev) => ({
+                                      ...prev,
+                                      [item]: checked === true,
+                                    }));
+                                  }}
+                                />
+                                <Label
+                                  htmlFor={`item-${index}-yes`}
+                                  className="cursor-pointer"
+                                >
+                                  Yes
+                                </Label>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`item-${index}-no`}
+                                  checked={leftWithItems[item] === false}
+                                  onCheckedChange={(checked) => {
+                                    setLeftWithItems((prev) => {
+                                      const newState = { ...prev };
+                                      if (checked === false) {
+                                        newState[item] = false;
+                                      } else {
+                                        delete newState[item];
+                                      }
+                                      return newState;
+                                    });
+                                  }}
+                                />
+                                <Label
+                                  htmlFor={`item-${index}-no`}
+                                  className="cursor-pointer"
+                                >
+                                  No
+                                </Label>
+                              </div>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+                  </div>
+
+                  <div className="flex justify-end space-x-3 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setIsLeftWithItemsDialogOpen(false);
+                        setPendingSignOutVisitId(null);
+                        setPendingSignOutVisit(null);
+                        setLeftWithItems({});
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleConfirmLeftWithItems}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      Confirm Sign Out
+                    </Button>
                   </div>
                 </div>
               )}

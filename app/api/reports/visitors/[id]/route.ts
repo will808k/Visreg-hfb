@@ -42,7 +42,7 @@ export async function GET(
 
     // Get visitor basic info
     const [visitorRows] = await pool.execute(
-      "SELECT id, name, visits as total_visits, created_at, updated_at FROM visitors WHERE id = ?",
+      "SELECT id, name, visits as total_visits, residence, created_at, updated_at FROM visitors WHERE id = ?",
       [visitorId]
     );
 
@@ -74,6 +74,7 @@ export async function GET(
         vis.laptop_model,
         vis.company,
         vis.person_in_charge,
+        vis.leftwithdevice,
          ${
            includeImages
              ? "vis.photo, vis.id_photo_front, vis.id_photo_back, vis.signature,"

@@ -77,11 +77,13 @@ interface Visit {
   other_items: string[] | null;
   visitee_name: string | null;
   signedout_by_name: string | null;
+  leftwithdevice?: string | null; // JSON string of items left with visitor
 }
 
 interface Visitor {
   id: number;
   name: string;
+  residence?: string;
   total_visits: number;
   created_at: string;
   updated_at: string;
@@ -391,6 +393,12 @@ export default function VisitorDetailsPage({
           <div>
             <h1 className="text-3xl font-bold">{data.visitor.name}</h1>
             <p className="text-muted-foreground">
+              {data.visitor.residence && (
+                <>
+                  <MapPin className="h-3 w-3 inline mr-1" />
+                  {data.visitor.residence} •{" "}
+                </>
+              )}
               Member since {formatDate(data.visitor.created_at)} • Last updated{" "}
               {formatDate(data.visitor.updated_at)}
             </p>
@@ -795,6 +803,17 @@ export default function VisitorDetailsPage({
                         </div>
                       </div>
                     )}
+                    {data.visitor.residence && (
+                      <div>
+                        <Label className="text-gray-700 font-medium text-base">
+                          Place of Residence
+                        </Label>
+                        <div className="text-base flex items-center mt-1">
+                          <MapPin className="h-4 w-4 mr-2 text-gray-400" />
+                          {data.visitor.residence}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -852,6 +871,68 @@ export default function VisitorDetailsPage({
                             {item}
                           </Badge>
                         ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+              {/* Items Clearance (Left With Items) */}
+              {selectedVisit.sign_out_time &&
+                selectedVisit.leftwithdevice && (
+                  <Card className="modern-shadow border-0">
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-xl">
+                        <CheckCircle className="h-5 w-5 mr-2 text-green-600" />
+                        Items Clearance
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-600 mb-4">
+                        Items the visitor left with upon sign-out:
+                      </p>
+                      <div className="space-y-3">
+                        {(() => {
+                          try {
+                            const leftWithItems = JSON.parse(
+                              selectedVisit.leftwithdevice
+                            );
+                            return Object.entries(leftWithItems).map(
+                              ([item, leftWith]) => (
+                                <div
+                                  key={item}
+                                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                                >
+                                  <div className="flex items-center space-x-2">
+                                    <Package className="h-4 w-4 text-gray-600" />
+                                    <span className="font-medium text-gray-900">
+                                      {item.replace(/^laptop_/, "").replace(/_/g, " ")}
+                                    </span>
+                                  </div>
+                                  <Badge
+                                    variant={
+                                      leftWith === true
+                                        ? "default"
+                                        : "secondary"
+                                    }
+                                    className={
+                                      leftWith === true
+                                        ? "bg-green-100 text-green-700"
+                                        : "bg-red-100 text-red-700"
+                                    }
+                                  >
+                                    {leftWith === true ? "Yes" : "No"}
+                                  </Badge>
+                                </div>
+                              )
+                            );
+                          } catch (e) {
+                            return (
+                              <p className="text-sm text-gray-500">
+                                Unable to parse clearance data
+                              </p>
+                            );
+                          }
+                        })()}
                       </div>
                     </CardContent>
                   </Card>

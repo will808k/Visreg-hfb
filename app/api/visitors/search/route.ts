@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
         v.id,
         v.name,
         v.phone_number,
+        v.residence,
         v.visits,
         v.created_at,
         (
@@ -191,6 +192,7 @@ export async function GET(request: NextRequest) {
         id: visitor.id,
         name: visitor.name,
         phone_number: visitor.phone_number,
+        residence: visitor.residence || undefined,
         visits: visitor.visits,
         last_visit: visitor.last_visit,
         last_visit_details: lastVisitDetails,
