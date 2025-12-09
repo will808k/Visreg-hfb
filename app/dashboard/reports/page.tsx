@@ -740,7 +740,7 @@ export default function ReportsPage() {
                   <TableHead className="text-center">
                     Number of Visits
                   </TableHead>
-                  <TableHead>Place of Residence</TableHead>
+                  <TableHead>Address</TableHead>
                   <TableHead>Last Visit Date</TableHead>
                   <TableHead>Details</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -1040,7 +1040,7 @@ export default function ReportsPage() {
                     {selectedVisitorResidence && (
                       <div>
                         <Label className="text-gray-700 font-medium text-base">
-                          Place of Residence
+                          Address
                         </Label>
                         <div className="text-base flex items-center mt-1">
                           <MapPin className="h-4 w-4 mr-2 text-gray-400" />

@@ -28,13 +28,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
     const includeImages = searchParams.get("include_images") === "true";
+    const allBranches = searchParams.get("all_branches") === "true";
 
     // Build the WHERE clause
     let whereClause = "WHERE DATE(v.sign_in_time) = CURDATE()";
     const queryParams: any[] = [];
 
-    // Add branch filtering for non-admin users
-    if (!user.isAdmin && user.branch_id) {
+    // Add branch filtering for non-admin users (unless all_branches is requested)
+    if (!user.isAdmin && user.branch_id && !allBranches) {
       whereClause += " AND v.branch_id = ?";
       queryParams.push(user.branch_id);
     }

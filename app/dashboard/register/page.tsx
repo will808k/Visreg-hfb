@@ -55,6 +55,7 @@ import {
   X,
   Calendar,
   ChevronLeft,
+  Edit,
 } from "lucide-react";
 import { removeAuthToken } from "@/lib/client-auth";
 import toast from "react-hot-toast";
@@ -181,6 +182,26 @@ export default function DashboardRegister() {
   const [pendingSignOutVisitId, setPendingSignOutVisitId] = useState<number | null>(null);
   const [pendingSignOutVisit, setPendingSignOutVisit] = useState<VisitDetails | null>(null);
   const [leftWithItems, setLeftWithItems] = useState<Record<string, boolean>>({});
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingVisitor, setEditingVisitor] = useState<GroupedVisitor | null>(null);
+  const [editingVisit, setEditingVisit] = useState<VisitDetails | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    visitorName: "",
+    visitorPhone: "",
+    visitorResidence: "",
+    visitBranchId: "",
+    visitOffice: "",
+    visitReason: "",
+    visitVisitee: "",
+    visitCategory: "Normal",
+    visitHasLaptop: false,
+    visitLaptopBrand: "",
+    visitLaptopModel: "",
+    visitCompany: "",
+    visitPersonInCharge: "",
+    visitOtherItems: [] as string[],
+  });
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -359,6 +380,109 @@ export default function DashboardRegister() {
 
   // fetchTodaysVisitors function removed - now handled by the caching hook
 
+  const handleEditVisit = (visitor: GroupedVisitor, visit: VisitDetails) => {
+    setEditingVisitor(visitor);
+    setEditingVisit(visit);
+    // Find branch_id from branch_name
+    const branch = branches.find((b) => b.name === visitor.branch_name);
+    setEditFormData({
+      visitorName: visitor.name,
+      visitorPhone: visitor.phone_number,
+      visitorResidence: visitor.residence || "",
+      visitBranchId: branch ? branch.id.toString() : "",
+      visitOffice: visit.office,
+      visitReason: visit.reason,
+      visitVisitee: visit.visitee_name || "",
+      visitCategory: visit.category || "Normal",
+      visitHasLaptop: visit.has_laptop,
+      visitLaptopBrand: visit.laptop_brand || "",
+      visitLaptopModel: visit.laptop_model || "",
+      visitCompany: visit.company || "",
+      visitPersonInCharge: visit.person_in_charge || "",
+      visitOtherItems: visit.other_items || [],
+    });
+    // Set selectedBranch for office/reason dropdowns
+    if (branch) {
+      setSelectedBranch(branch);
+    }
+    setIsEditDialogOpen(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingVisitor || !editingVisit) return;
+
+    setIsSavingEdit(true);
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast.error("Authentication required");
+        return;
+      }
+
+      // Update visitor
+      const visitorResponse = await fetch(
+        `/api/visitors/${editingVisitor.visitor_id}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: editFormData.visitorName,
+            phone_number: editFormData.visitorPhone,
+            residence: editFormData.visitorResidence,
+          }),
+        }
+      );
+
+      if (!visitorResponse.ok) {
+        const error = await visitorResponse.json();
+        toast.error(error.error || "Failed to update visitor");
+        return;
+      }
+
+      // Update visit
+      const visitResponse = await fetch(`/api/visits/${editingVisit.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          branch_id: editFormData.visitBranchId ? Number.parseInt(editFormData.visitBranchId) : null,
+          office: editFormData.visitOffice,
+          reason: editFormData.visitReason,
+          visitee_name: editFormData.visitVisitee,
+          category: editFormData.visitCategory,
+          has_laptop: editFormData.visitHasLaptop,
+          laptop_brand: editFormData.visitLaptopBrand,
+          laptop_model: editFormData.visitLaptopModel,
+          company: editFormData.visitCompany,
+          person_in_charge: editFormData.visitPersonInCharge,
+          other_items: editFormData.visitOtherItems,
+        }),
+      });
+
+      if (!visitResponse.ok) {
+        const error = await visitResponse.json();
+        toast.error(error.error || "Failed to update visit");
+        return;
+      }
+
+      toast.success("Visit and visitor details updated successfully");
+      setIsEditDialogOpen(false);
+      setEditingVisitor(null);
+      setEditingVisit(null);
+      await refreshVisitors();
+    } catch (error) {
+      console.error("Error updating visit/visitor:", error);
+      toast.error("An error occurred while updating");
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   const handleViewVisitDetails = (visit: VisitDetails) => {
     const visitor = visitors.find((v) =>
       v.visits.some((vst) => vst.id === visit.id)
@@ -535,6 +659,7 @@ export default function DashboardRegister() {
     setFormData({
       name: "",
       phone_number: "", // Added phone_number reset
+      residence: "",
       branch_id: "",
       has_laptop: false,
       laptop_brand: "",
@@ -1073,7 +1198,7 @@ export default function DashboardRegister() {
                               htmlFor="residence"
                               className="text-gray-700 font-medium text-base"
                             >
-                              Place of Residence *
+                              Address *
                             </Label>
                             <Input
                               id="residence"
@@ -1085,7 +1210,7 @@ export default function DashboardRegister() {
                                 }))
                               }
                               className="mt-1 h-12 text-base"
-                              placeholder="Enter place of residence"
+                              placeholder="Enter address"
                               required
                             />
                           </div>
@@ -2008,6 +2133,17 @@ export default function DashboardRegister() {
                                   <div className="flex items-center justify-end space-x-2">
                                     <Button
                                       onClick={() =>
+                                        handleEditVisit(visitor, visit)
+                                      }
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 text-sm border-blue-200"
+                                    >
+                                      <Edit className="h-4 w-4 mr-1" />
+                                      Edit
+                                    </Button>
+                                    <Button
+                                      onClick={() =>
                                         handleViewVisitDetails(visit)
                                       }
                                       variant="outline"
@@ -2122,7 +2258,7 @@ export default function DashboardRegister() {
                       </div>
                       <div>
                         <Label className="text-sm font-medium text-gray-500">
-                          Place of Residence
+                          Address
                         </Label>
                         <p className="text-base">
                           {selectedVisitorDetails.residence ||
@@ -2431,15 +2567,11 @@ export default function DashboardRegister() {
                               }
                               onCheckedChange={(checked) => {
                                 const key = `laptop_${pendingSignOutVisit.laptop_brand || ''}_${pendingSignOutVisit.laptop_model || ''}`;
-                                setLeftWithItems((prev) => {
-                                  const newState = { ...prev };
-                                  if (checked === false) {
-                                    newState[key] = false;
-                                  } else {
-                                    delete newState[key];
-                                  }
-                                  return newState;
-                                });
+                                // When "No" is clicked, set to false (checked) or keep as false
+                                setLeftWithItems((prev) => ({
+                                  ...prev,
+                                  [key]: false,
+                                }));
                               }}
                             />
                             <Label htmlFor="laptop-no" className="cursor-pointer">
@@ -2484,15 +2616,11 @@ export default function DashboardRegister() {
                                 id={`item-${index}-no`}
                                 checked={leftWithItems[item] === false}
                                 onCheckedChange={(checked) => {
-                                  setLeftWithItems((prev) => {
-                                    const newState = { ...prev };
-                                    if (checked === false) {
-                                      newState[item] = false;
-                                    } else {
-                                      delete newState[item];
-                                    }
-                                    return newState;
-                                  });
+                                  // When "No" is clicked, set to false (checked) or keep as false
+                                  setLeftWithItems((prev) => ({
+                                    ...prev,
+                                    [item]: false,
+                                  }));
                                 }}
                               />
                               <Label
@@ -2525,6 +2653,438 @@ export default function DashboardRegister() {
                     className="bg-blue-600 hover:bg-blue-700"
                   >
                     Confirm Sign Out
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Visit Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold text-gray-900">
+                Edit Visit and Visitor Details
+              </DialogTitle>
+            </DialogHeader>
+            {editingVisitor && editingVisit && (
+              <div className="space-y-6">
+                {/* Visitor Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <User className="h-5 w-5 mr-2 text-blue-600" />
+                      Visitor Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="edit-visitor-name" className="text-gray-700 font-medium text-base">
+                          Full Name *
+                        </Label>
+                        <Input
+                          id="edit-visitor-name"
+                          value={editFormData.visitorName}
+                          onChange={(e) =>
+                            setEditFormData((prev) => ({
+                              ...prev,
+                              visitorName: e.target.value,
+                            }))
+                          }
+                          className="mt-1 h-12 text-base"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-visitor-phone" className="text-gray-700 font-medium text-base">
+                          Phone Number *
+                        </Label>
+                        <Input
+                          id="edit-visitor-phone"
+                          type="tel"
+                          value={editFormData.visitorPhone}
+                          onChange={(e) =>
+                            setEditFormData((prev) => ({
+                              ...prev,
+                              visitorPhone: e.target.value,
+                            }))
+                          }
+                          className="mt-1 h-12 text-base"
+                          required
+                        />
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label htmlFor="edit-visitor-residence" className="text-gray-700 font-medium text-base">
+                          Place of Residence
+                        </Label>
+                        <Input
+                          id="edit-visitor-residence"
+                          value={editFormData.visitorResidence}
+                          onChange={(e) =>
+                            setEditFormData((prev) => ({
+                              ...prev,
+                              visitorResidence: e.target.value,
+                            }))
+                          }
+                          className="mt-1 h-12 text-base"
+                          placeholder="Enter place of residence"
+                        />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Visit Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <Calendar className="h-5 w-5 mr-2 text-green-600" />
+                      Visit Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <Label htmlFor="edit-visit-branch" className="text-gray-700 font-medium text-base">
+                          Branch *
+                        </Label>
+                        <Select
+                          value={editFormData.visitBranchId}
+                          onValueChange={(value) => {
+                            const branch = branches.find((b) => b.id.toString() === value);
+                            setEditFormData((prev) => ({
+                              ...prev,
+                              visitBranchId: value,
+                              visitOffice: "", // Reset office when branch changes
+                              visitReason: "", // Reset reason when branch changes
+                            }));
+                            if (branch) {
+                              setSelectedBranch(branch);
+                            }
+                          }}
+                          required
+                        >
+                          <SelectTrigger className="mt-1 h-12 text-base">
+                            <SelectValue placeholder="Select branch" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {branches.map((branch) => (
+                              <SelectItem key={branch.id} value={branch.id.toString()}>
+                                {branch.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-visit-office" className="text-gray-700 font-medium text-base">
+                          Office to visit *
+                        </Label>
+                        <Select
+                          value={editFormData.visitOffice}
+                          onValueChange={(value) =>
+                            setEditFormData((prev) => ({
+                              ...prev,
+                              visitOffice: value,
+                            }))
+                          }
+                          required
+                          disabled={!editFormData.visitBranchId}
+                        >
+                          <SelectTrigger className="mt-1 h-12 text-base">
+                            <SelectValue placeholder="Select office" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {selectedBranch &&
+                              Array.isArray(selectedBranch.offices) &&
+                              selectedBranch.offices.map((office) => (
+                                <SelectItem key={office} value={office}>
+                                  {office}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-visit-reason" className="text-gray-700 font-medium text-base">
+                          Reason for Visit *
+                        </Label>
+                        <Select
+                          value={editFormData.visitReason}
+                          onValueChange={(value) =>
+                            setEditFormData((prev) => ({
+                              ...prev,
+                              visitReason: value,
+                            }))
+                          }
+                          required
+                          disabled={!editFormData.visitBranchId}
+                        >
+                          <SelectTrigger className="mt-1 h-12 text-base">
+                            <SelectValue placeholder="Select reason" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {selectedBranch &&
+                              Array.isArray(selectedBranch.reasons) &&
+                              selectedBranch.reasons.map((reason) => (
+                                <SelectItem key={reason} value={reason}>
+                                  {reason}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-visit-visitee" className="text-gray-700 font-medium text-base">
+                          Visiting (Visitee Name)
+                        </Label>
+                        <Input
+                          id="edit-visit-visitee"
+                          value={editFormData.visitVisitee}
+                          onChange={(e) =>
+                            setEditFormData((prev) => ({
+                              ...prev,
+                              visitVisitee: e.target.value,
+                            }))
+                          }
+                          className="mt-1 h-12 text-base"
+                          placeholder="Person being visited"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit-visit-category" className="text-gray-700 font-medium text-base">
+                          Category
+                        </Label>
+                        <Select
+                          value={editFormData.visitCategory}
+                          onValueChange={(value) =>
+                            setEditFormData((prev) => ({
+                              ...prev,
+                              visitCategory: value,
+                            }))
+                          }
+                        >
+                          <SelectTrigger className="mt-1 h-12 text-base">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Normal">Normal</SelectItem>
+                            <SelectItem value="Vendor">Vendor</SelectItem>
+                            <SelectItem value="VIP">VIP</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Equipment Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <Laptop className="h-5 w-5 mr-2 text-blue-600" />
+                      Equipment Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center space-x-3">
+                      <Checkbox
+                        id="edit-visit-has-laptop"
+                        checked={editFormData.visitHasLaptop}
+                        onCheckedChange={(checked) =>
+                          setEditFormData((prev) => ({
+                            ...prev,
+                            visitHasLaptop: checked as boolean,
+                          }))
+                        }
+                      />
+                      <Label
+                        htmlFor="edit-visit-has-laptop"
+                        className="text-gray-700 font-medium text-base cursor-pointer"
+                      >
+                        Carrying a laptop or electronic device
+                      </Label>
+                    </div>
+                    {editFormData.visitHasLaptop && (
+                      <div className="grid grid-cols-2 gap-4 mt-4 p-4 bg-blue-50 rounded-lg">
+                        <div>
+                          <Label htmlFor="edit-laptop-brand" className="text-gray-700 font-medium text-base">
+                            Brand
+                          </Label>
+                          <Input
+                            id="edit-laptop-brand"
+                            value={editFormData.visitLaptopBrand}
+                            onChange={(e) =>
+                              setEditFormData((prev) => ({
+                                ...prev,
+                                visitLaptopBrand: e.target.value,
+                              }))
+                            }
+                            className="mt-1 h-10 text-base"
+                            placeholder="e.g., Apple, Dell"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="edit-laptop-model" className="text-gray-700 font-medium text-base">
+                            Model
+                          </Label>
+                          <Input
+                            id="edit-laptop-model"
+                            value={editFormData.visitLaptopModel}
+                            onChange={(e) =>
+                              setEditFormData((prev) => ({
+                                ...prev,
+                                visitLaptopModel: e.target.value,
+                              }))
+                            }
+                            className="mt-1 h-10 text-base"
+                            placeholder="e.g., MacBook Pro"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Other Items */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center text-xl">
+                      <Package className="h-5 w-5 mr-2 text-purple-600" />
+                      Other Items Being Carried
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <p className="text-sm text-gray-500">
+                      Add any other items being carried (bags, equipment, etc.)
+                    </p>
+                    <div className="space-y-3">
+                      {editFormData.visitOtherItems.map((item, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center space-x-2"
+                        >
+                          <Input
+                            value={item}
+                            onChange={(e) => {
+                              const newItems = [...editFormData.visitOtherItems];
+                              newItems[index] = e.target.value;
+                              setEditFormData((prev) => ({
+                                ...prev,
+                                visitOtherItems: newItems,
+                              }));
+                            }}
+                            placeholder={`Item ${index + 1}`}
+                            className="flex-1 h-10 text-base"
+                          />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const newItems = editFormData.visitOtherItems.filter(
+                                (_, i) => i !== index
+                              );
+                              setEditFormData((prev) => ({
+                                ...prev,
+                                visitOtherItems: newItems,
+                              }));
+                            }}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setEditFormData((prev) => ({
+                            ...prev,
+                            visitOtherItems: [...prev.visitOtherItems, ""],
+                          }));
+                        }}
+                        className="w-full h-10 border-dashed border-2 hover:bg-purple-50 text-base bg-transparent"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Item
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Vendor Information */}
+                {editFormData.visitCategory === "Vendor" && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center text-xl">
+                        <Building2 className="h-5 w-5 mr-2 text-green-600" />
+                        Vendor Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="edit-company" className="text-gray-700 font-medium text-base">
+                            Company Name
+                          </Label>
+                          <Input
+                            id="edit-company"
+                            value={editFormData.visitCompany}
+                            onChange={(e) =>
+                              setEditFormData((prev) => ({
+                                ...prev,
+                                visitCompany: e.target.value,
+                              }))
+                            }
+                            className="mt-1 h-12 text-base"
+                            placeholder="e.g., ABC Technologies"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="edit-person-in-charge" className="text-gray-700 font-medium text-base">
+                            Person in Charge
+                          </Label>
+                          <Input
+                            id="edit-person-in-charge"
+                            value={editFormData.visitPersonInCharge}
+                            onChange={(e) =>
+                              setEditFormData((prev) => ({
+                                ...prev,
+                                visitPersonInCharge: e.target.value,
+                              }))
+                            }
+                            className="mt-1 h-12 text-base"
+                            placeholder="Contact person name"
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-3 pt-4 border-t">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsEditDialogOpen(false);
+                      setEditingVisitor(null);
+                      setEditingVisit(null);
+                    }}
+                    disabled={isSavingEdit}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveEdit}
+                    disabled={isSavingEdit}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isSavingEdit ? "Saving..." : "Save Changes"}
                   </Button>
                 </div>
               </div>

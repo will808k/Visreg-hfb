@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
     const statusFilter = searchParams.get("status");
     const includeImages = searchParams.get("include_images") === "true";
     const date = searchParams.get("date");
+    const allBranches = searchParams.get("all_branches") === "true";
 
     if (!date) {
       return NextResponse.json(
@@ -50,8 +51,8 @@ export async function GET(request: NextRequest) {
     let whereClause = "WHERE DATE(v.sign_in_time) = ?";
     const queryParams: any[] = [date];
 
-    // Add branch filtering for non-admin users
-    if (!user.isAdmin && user.branch_id) {
+    // Add branch filtering for non-admin users (unless all_branches is requested)
+    if (!user.isAdmin && user.branch_id && !allBranches) {
       whereClause += " AND v.branch_id = ?";
       queryParams.push(user.branch_id);
     }

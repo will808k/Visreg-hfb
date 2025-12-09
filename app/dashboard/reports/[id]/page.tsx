@@ -806,7 +806,7 @@ export default function VisitorDetailsPage({
                     {data.visitor.residence && (
                       <div>
                         <Label className="text-gray-700 font-medium text-base">
-                          Place of Residence
+                          Address
                         </Label>
                         <div className="text-base flex items-center mt-1">
                           <MapPin className="h-4 w-4 mr-2 text-gray-400" />
